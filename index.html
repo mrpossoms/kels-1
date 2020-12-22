@@ -80,7 +80,7 @@ g.web.pointer.on_release(function (e) {
 });
 
 g.web.pointer.on_move(function (e) {
-  CONE_POS = [(e.x + 12) - g.web.gfx.width() / 2, -(e.y - 16) + g.web.gfx.height() / 2, 0];
+  CONE_POS = [(e.clientX + 12) - g.web.gfx.width() / 2, -(e.clientY - 16) + g.web.gfx.height() / 2, 0];
 });
 
 g.web.draw(function (dt)
@@ -126,30 +126,29 @@ g.web.draw(function (dt)
     CAM.orthographic(g.web.gfx.width(), g.web.gfx.height(), 0, 1);
     gl.clearColor(1, 1, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    let scale = scl(150, 150, 150);
 
     WIN_SPRITE_INST.layer = 'back';
     draw_sprite(
-      scl(100, 100, 100).mat_mul([].translate([0,0,0])),
+      scale.mat_mul([].translate([0,0,0])),
       WIN_SPRITE_INST,
       g.web.assets['tex/win']
     );
     WIN_SPRITE_INST.layer = 'body';
     draw_sprite(
-      scl(100, 100, 100).mat_mul([].translate(WIN_POS.mul(0.5))),
+      scale.mat_mul([].translate(WIN_POS.mul(0.5))),
       WIN_SPRITE_INST,
       g.web.assets['tex/win']
     );
     WIN_SPRITE_INST.layer = 'front';
     draw_sprite(
-      scl(100, 100, 100).mat_mul([].translate(WIN_POS)),
+      scale.mat_mul([].translate(WIN_POS)),
       WIN_SPRITE_INST,
       g.web.assets['tex/win']
     );
-
-
     WIN_SPRITE_HEAD_INST.layer = 'head';
     draw_sprite(
-      scl(100, 100, 100).mat_mul([].translate(WIN_POS)),
+      scale.mat_mul([].translate(WIN_POS)),
       WIN_SPRITE_HEAD_INST,
       g.web.assets['tex/win']
     );
