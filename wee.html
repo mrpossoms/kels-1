@@ -1,14 +1,16 @@
 <html>
 <head>
 
-<title>Merry Christmas Kels!</title>
+<title>Merry Christmas Dood!</title>
 <script type="text/javascript">
 
-var AG_SPRITE_INST;
-var AG_HOME = [-0.2, 0.1, 0];
-var AG_POS = AG_HOME.slice();
-var AG_VEL = [0, 0, 0];
-var AG_JUMP_TIMER = 0;
+var WIN_SPRITE_INST, WIN_SPRITE_HEAD_INST;
+var WIN_HOME = [-0.0, 0.0, 0];
+var WIN_POS = WIN_HOME.slice();
+var WIN_VEL = [0, 0, 0];
+var WIN_JUMP_TIMER = 0;
+var CONE_POS = [0,0];
+var CONE_SHOW = false;
 
 var CAM;
 
@@ -35,16 +37,15 @@ g.initialize(function ()
     g.is_running = true;
 
     g.web.gfx.shader.create('sprite', SRC_SPRITE_VS, SRC_SPRITE_FS);
-    g.web.assets['tex/ag'] = g.web.gfx.texture.clamped().pixelated().create(document.getElementById('ag'));
-    g.web.assets['tex/beddy'] = g.web.gfx.texture.clamped().pixelated().create(document.getElementById('beddy'));
-    g.web.assets['sprite/ag'] = g.web.gfx.sprite.create(AG_SPRITE);
-    g.web.assets['sprite/beddy'] = g.web.gfx.sprite.create(BEDDY_SPRITE);
+    g.web.assets['tex/win'] = g.web.gfx.texture.create(document.getElementById('win')).color().clamped().pixelated();
+    g.web.assets['tex/cone'] = g.web.gfx.texture.create(document.getElementById('cone')).color().clamped().pixelated();
+    g.web.assets['sprite/win'] = g.web.gfx.sprite.create(WIN_SPRITE);
 
-    AG_SPRITE_INST = new g.web.assets['sprite/ag']();
-    BEDDY_SPRITE_INST = new g.web.assets['sprite/beddy']();
-
-    AG_SPRITE_INST.tag = AG_SPRITE_INST.tags['snooze'];
-    BEDDY_SPRITE_INST.tag = BEDDY_SPRITE_INST.tags['snooze'];
+    WIN_SPRITE_INST = new g.web.assets['sprite/win']();
+    WIN_SPRITE_HEAD_INST = new g.web.assets['sprite/win']();
+    WIN_SPRITE_INST.tag = WIN_SPRITE_INST.tags['wag'];
+    WIN_SPRITE_HEAD_INST.tag = WIN_SPRITE_HEAD_INST.tags['wag'];
+    WIN_SPRITE_INST.layer = 'back';
 
     g.web.assets['mesh/plane'] = g.web.gfx.mesh.create({
         positions: [
@@ -61,7 +62,7 @@ g.initialize(function ()
         ]
     });
 
-    CAM = new g.web.gfx.camera();
+    CAM = new g.camera.create();
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -70,51 +71,46 @@ g.initialize(function ()
 });
 
 g.web.pointer.on_press(function (e) {
-  BEDDY_SPRITE_INST.queue = [BEDDY_SPRITE_INST.tags['snooze'], BEDDY_SPRITE_INST.tags['kick']];
-  AG_VEL = [0.5, 4, 0];
-  AG_SPRITE_INST.set('Soar');
+  CONE_SHOW = true;
+});
+
+g.web.pointer.on_release(function (e) {
+  CONE_SHOW = false;
+  WIN_SPRITE_HEAD_INST.set('wag');
+});
+
+g.web.pointer.on_move(function (e) {
+  CONE_POS = [(e.x + 12) - g.web.gfx.width() / 2, -(e.y - 16) + g.web.gfx.height() / 2, 0];
 });
 
 g.web.draw(function (dt)
 {
     if (g.is_running == false) { return; }
 
-
     // Update
-    AG_SPRITE_INST.tick(dt);
-    BEDDY_SPRITE_INST.tick(dt);
+    WIN_SPRITE_INST.tick(dt);
 
-    AG_VEL = AG_VEL.add([0, -9.8 * dt, 0]);
-
-    if (AG_POS[0] <= AG_HOME[0])
+    WIN_VEL = WIN_VEL.add([0,-1000,0].mul(dt));
+    WIN_POS = WIN_POS.add(WIN_VEL.mul(dt));
+    if (WIN_POS[1] < 0)
     {
-      if (AG_POS[1] <= AG_HOME[1] && AG_VEL[1] < 0)
+      WIN_VEL = [0,0,0];
+      WIN_POS[1] = 0;
+
+      if (CONE_SHOW)
       {
-        AG_VEL[1] = 0;
-        AG_POS[1] = AG_HOME[1];
-        AG_VEL = AG_VEL.mul(0.25 * dt);
-        AG_SPRITE_INST.queue = [AG_SPRITE_INST.tags['snooze']];
+        WIN_VEL = [0, 200, 0];
+      }
+
+      if (CONE_SHOW && CONE_POS[1] > 100)
+      {
+        WIN_SPRITE_HEAD_INST.set('hop');
+      }
+      else
+      {
+        WIN_SPRITE_HEAD_INST.set('wag');
       }
     }
-    else
-    {
-      if (AG_POS[1] < -0.4 && AG_VEL[1] < 0)
-      {
-        AG_VEL[1] = 0;
-        AG_VEL = AG_VEL.mul(0.25 * dt);
-        AG_JUMP_TIMER += dt;
-        AG_SPRITE_INST.set('sit');
-      }
-    }
-
-    if (AG_JUMP_TIMER > 1)
-    {
-      AG_JUMP_TIMER = 0;
-      AG_SPRITE_INST.set('Jump');
-      AG_VEL = [-(AG_POS[0] - AG_HOME[0]), 5.5, 0];
-    }
-
-    AG_POS = AG_POS.add(AG_VEL.mul(dt));
 
     // Draw
     function scl(x, y, z)
@@ -127,20 +123,46 @@ g.web.draw(function (dt)
         ];
     }
 
-    CAM.orthographic();
+    CAM.orthographic(g.web.gfx.width(), g.web.gfx.height(), 0, 1);
     gl.clearColor(1, 1, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    WIN_SPRITE_INST.layer = 'back';
     draw_sprite(
-      scl(1, 0.5, 0.5).mat_mul([].translate([-0.6, 0, 0])),
-      BEDDY_SPRITE_INST,
-      g.web.assets['tex/beddy']
+      scl(100, 100, 100).mat_mul([].translate([0,0,0])),
+      WIN_SPRITE_INST,
+      g.web.assets['tex/win']
     );
+    WIN_SPRITE_INST.layer = 'body';
     draw_sprite(
-      scl(0.25, 0.25, 0.25).mat_mul([].translate(AG_POS)),
-      AG_SPRITE_INST,
-      g.web.assets['tex/ag']
+      scl(100, 100, 100).mat_mul([].translate(WIN_POS.mul(0.5))),
+      WIN_SPRITE_INST,
+      g.web.assets['tex/win']
     );
+    WIN_SPRITE_INST.layer = 'front';
+    draw_sprite(
+      scl(100, 100, 100).mat_mul([].translate(WIN_POS)),
+      WIN_SPRITE_INST,
+      g.web.assets['tex/win']
+    );
+
+
+    WIN_SPRITE_HEAD_INST.layer = 'head';
+    draw_sprite(
+      scl(100, 100, 100).mat_mul([].translate(WIN_POS)),
+      WIN_SPRITE_HEAD_INST,
+      g.web.assets['tex/win']
+    );
+
+    if (CONE_SHOW)
+    g.web.assets['mesh/plane'].using_shader('sprite')
+      .with_attribute({name:'a_position', buffer: 'positions', components: 3})
+      .with_attribute({name:'a_tex_coord', buffer: 'texture_coords', components: 2})
+      .set_uniform('u_sprite_sheet').texture(g.web.assets['tex/cone'])
+      .with_camera(CAM)
+      .set_uniform('u_model').mat4(scl(50, 50, 50).mat_mul([].translate(CONE_POS)))
+      .set_uniform('u_origin_size').vec4([0, 0, 2, 1])
+      .draw_tri_strip();
 });
 
 g.start();
@@ -154,9 +176,2881 @@ g.start();
 <canvas class="col" style="width: 100%; height: 100%"></canvas>
 
 <script type="text/javascript">
-  const g={_initalize:function(){},_update:function(){},is_running:!0,timer:function(){this._last=(new Date).getTime(),this._start=(new Date).getTime(),this.tick=function(){var t=(new Date).getTime(),r=t-this._last;return this._last=t,r/1e3},this.total=function(){return(new Date).getTime()-this._start}},initialize:function(t){return g._initialize=t,this},update:function(t){return g._update=t,this},canvas:function(t){return g._canvas=t,this},start:function(){var t=window.requestAnimationFrame||window.webkitRequestAnimationFrame||window.mozRequestAnimationFrame||window.oRequestAnimationFrame||window.msRequestAnimationFrame,r=new g.timer;if(g.web){try{g.web._socket=io(),g.web._socket.on("message",g.web._on_message),g.web.socket=function(){return g.web._socket}}catch(t){}if(!g.web.gfx._initalize())return}if(g._initialize()){var n=function(){var i=r.tick();g.is_running&&(g._update(i),g.web&&g.web._draw(i)),g.web&&t(n)};g.web&&t(n)}else console.error("initialize_func(): returned false.")}};function for_each(t,r){if(!t)return t;if(t.constructor===Array)return t.for_each(r);for(var n in t)t.hasOwnProperty(n)&&r(t[n],n,this);return t}Array.prototype.is_matrix=function(){return this[0].constructor===Array},Array.prototype.new_matrix=function(t,r){for(var n=new Array(t),i=t;i--;){n[i]=new Array(r);for(var e=r;e--;)n[i][e]=0}return n},Array.prototype.add=function(t){var r=new Array(this.length);if("number"==typeof t)for(var n=this.length;n--;)r[n]=this[n]+t;else if(t.constructor===Array)for(n=this.length;n--;)r[n]=this[n]+t[n];return r},Array.prototype.sub=function(t){var r=new Array(this.length);if("number"==typeof t)for(var n=this.length;n--;)r[n]=this[n]-t;else if(t.constructor===Array)for(n=this.length;n--;)r[n]=this[n]-t[n];return r},Array.prototype.mul=function(t){var r=new Array(this.length);if("number"==typeof t)if(this.is_matrix()){const e=this.mat_dims();for(var n=e[0];n--;){r[n]=new Array(e[1]);for(var i=e[1];i--;)r[n][i]=this[n][i]*t}}else for(var e=this.length;e--;)r[e]=this[e]*t;else if(t.constructor===Array&&"number"==typeof t[0])return this.mat_mul(t);return r},Array.prototype.pow=function(t){var r=new Array(this.length);if("number"==typeof t)if(this.is_matrix()){const e=this.mat_dims();for(var n=e[0];n--;){r[n]=new Array(e[1]);for(var i=e[1];i--;)r[n][i]=Math.pow(this[n][i],t)}}else for(var e=this.length;e--;)r[e]=Math.pow(this[e],t);else if(v.constructor===Array&&"number"==typeof t[0])for(e=this.length;e--;)r[e]=Math.pow(this[e],t[e]);return r},Array.prototype.div=function(t){var r=new Array(this.length);if("number"==typeof t)for(var n=this.length;n--;)r[n]=this[n]/t;else if(t.constructor===Array)for(n=this.length;n--;)r[n]=this[n]/t[n];return r},Array.prototype.lerp=function(t,r){for(var n=new Array(this.length),i=0;i<n.length;i++)n[i]=this[i]*(1-r)+t[i]*r;return n},Array.prototype.len=function(){return"number"!=typeof this[0]?NaN:Math.sqrt(this.dot(this))},Array.prototype.norm=function(){return"number"!=typeof this[0]?null:this.div(this.len())},Array.prototype.mat_dims=function(){return[this.length,this[0].length]},Array.prototype.mat_mul=function(t){var r=this.matrix(),n=t.matrix();const i=r.mat_dims(),e=n.mat_dims();for(var o=this.new_matrix(i[0],e[1]),a=i[1],s=i[0];s--;)for(var u=e[1];u--;){o[s][u]=0;for(var h=a;h--;)o[s][u]+=r[s][h]*n[h][u]}return o},Array.prototype.swap_rows=function(t,r){const n=this[i];return this[i]=this[j],this[j]=n,this},Array.prototype.augment=function(){const t=this.mat_dims(),r=t[0],n=t[1],i=2*n;for(var e=this.new_matrix(r,i),o=r;o--;){e[o][o+n]=1;for(var a=n;a--;)e[o][a]=this[o][a]}return e},Array.prototype.rref=function(){var t=this.matrix();const r=t.mat_dims(),n=r[0],i=r[1];for(var e=0,o=0;o<n;o++){if(0==t[o][e]){for(var a=-1,s=o+1;s<n;s++)if(0!=t[s][e]){a=s;break}a>-1&&t.swap_rows(a,o)}{const r=1/t[o][e];for(var u=e;u<i;u++)t[o][u]*=r}for(s=0;s<n;s++){if(0==t[s][e]||s==o)continue;const r=t[s][e];for(u=e;u<i;u++)t[s][u]-=r*t[o][u]}++e}return t},Array.prototype.inverse=function(){const t=this.mat_dims(),r=t[0],n=t[1],i=this.augment().rref();for(var e=new Array(r),o=r;o--;){var a=i[o].slice(n,2*n);e[o]=a}return e},Array.prototype.flatten=function(){var t=[];if("number"==typeof this[0])t=this;else for(var r=0;r<this.length;++r)t=t.concat(this[r]);return t},Array.prototype.as_Float32Array=function(t){return new Float32Array(this.flatten())},Array.prototype.as_Int16Array=function(t){return new Int16Array(this.flatten())},Array.prototype.transpose=function(){const t=this.mat_dims();for(var r=this.new_matrix(t[1],t[0]),n=t[0];n--;)for(var i=t[1];i--;)r[i][n]=this[n][i];return r},Array.prototype.matrix=function(){return this[0].constructor===Array?this:[this].transpose()},Array.prototype.random_unit=function(){return[Math.random(),Math.random(),Math.random()].sub([.5,.5,.5]).norm()},Array.prototype.I=function(t){for(var r=this.new_matrix(t,t),n=t;n--;)for(var i=t;i--;)r[i][n]=n==i?1:0;return r},Array.prototype.dot=function(t){for(var r=0,n=this.length;n--;)r+=this[n]*t[n];return r},Array.prototype.cross=function(t){return[this[1]*t[2]-this[2]*t[1],this[2]*t[0]-this[0]*t[2],this[0]*t[1]-this[1]*t[0]]},Array.prototype.translate=function(t){return[[1,0,0,0],[0,1,0,0],[0,0,1,0],[-t[0],-t[1],-t[2],1]]},Array.prototype.perspective=function(t,r,n,i){const e=Math.tan(.5*Math.PI-.5*t),o=i-n;return[[e/r,0,0,0],[0,e,0,0],[0,0,-(i+n)/o,-1],[0,0,-2*(i*n)/o,1]]},Array.prototype.orthographic=function(t,r,n,i,e,o){const a=t-r,s=n-i,u=o-e;return[[2/a,0,0,-(t+r)/a],[0,2/s,0,-(n+i)/s],[0,0,-2/u,-(o+e)/u],[0,0,0,1]]},Array.prototype.view=function(t,r,n){const i=r.cross(n).mul(1),e=i.cross(r),o=r,a=t;var s=[[i[0],i[1],i[2],0],[e[0],e[1],e[2],0],[o[0],o[1],o[2],0],[0,0,0,1]].transpose();return[[1,0,0,0],[0,1,0,0],[0,0,1,0],[a[0],a[1],a[2],1]].mat_mul(s)},Array.prototype.rotation=function(t,r){const n=t,i=Math.cos(r),e=Math.sin(r),o=1-i;return[[i+n[0]*n[0]*o,n[1]*n[0]*o+n[2]*e,n[2]*n[0]*o-n[1]*e,0],[n[0]*n[1]*o-n[2]*e,i+n[1]*n[1]*o,n[2]*n[1]*o+n[0]*e,0],[n[0]*n[2]*o+n[1]*e,n[1]*n[2]*o-n[0]*e,i+n[2]*n[2]*o,0],[0,0,0,1]]},Array.prototype.scale=function(t){var r=[].I(4).mul(t);return r[3][3]=1,r},Array.prototype.quat_rotation=function(t,r){var n=r/2,i=Math.sin(n);return t.mul(i).concat(Math.cos(n))},Array.prototype.quat_rotate_vector=function(t){var r=this.slice(0,3),n=r.cross(t);n=n.mul(2);var i=r.cross(n);return n=n.mul(this[3]),t.add(n).add(i)},Array.prototype.quat_to_matrix=function(){var t=this,r=t[3],n=t[0],i=t[1],e=t[2],o=r*r,a=n*n,s=i*i,u=e*e;return[[o+a-s-u,2*n*i-2*r*e,2*n*e+2*r*i,0],[2*n*i+2*r*e,o-a+s-u,2*i*e-2*r*n,0],[2*n*e-2*r*i,2*i*e+2*r*n,o-a-s+u,0],[0,0,0,1]]},Array.prototype.quat_conjugate=function(){return this.mul([-1,-1,-1,1])},Array.prototype.quat_inverse=function(){const t=this.dot(this);return this.quat_conjugate().mul(1/t)},Array.prototype.quat_mul=function(t){return[this[3]*t[0]+this[0]*t[3]+this[1]*t[2]-this[2]*t[1],this[3]*t[1]-this[0]*t[2]+this[1]*t[3]+this[2]*t[0],this[3]*t[2]+this[0]*t[1]-this[1]*t[0]+this[2]*t[3],this[3]*t[3]-this[0]*t[0]-this[1]*t[1]-this[2]*t[2]]},Array.prototype.for_each=function(t){for(var r=0;r<this.length;++r)t(this[r],r,this);return this},Array.prototype.accumulate=function(t,r,n){n=n||1;for(var i=this.length;i--;)this[i][t]=this[i][t].add(this[i][r].mul(n))},Array.prototype.timed_queue=function(){return this.last_idx=function(){return this.length-1<0?0:this.length-1},this.peek=function(){return this.empty()?null:this[this.last_idx()].value},this.empty=function(){return 0==this.length},this.push=function(t,r){const n=t.value||t,i=t.time||r;this.unshift({value:n,time:i})},this.update=function(t){if(this.empty())return this;this[this.last_idx()].time-=t,this[this.last_idx()].time<=0&&this.pop()},this},Math.ray=function(t){return{intersects:{sphere:function(r,n){const i=r.sub(t.position),e=t.direction.dot(i),o=i.dot(i),a=n*n;var s=0;if(e<0&&o>a)return!1;const u=o-e*e;if(u>a)return!1;const h=Math.sqrt(a-u);return s=a-u?e-h:e+h,t.position.add(t.direction.mul(s))}}}},Math.random.unit_vector=function(t){if(t=t||Math.floor(1e3*Math.random()),!this._uv_lut){this._uv_lut=[];for(var r=1e3;r--;)this._uv_lut.push([].random_unit())}return this._uv_lut[t]},Math.model_matrix=function(t){var r=[].I(4);return"scale"in t&&(r=r.mat_mul([].scale(t.scale))),"q"in t&&(r=r.mat_mul(t.q.quat_inverse().quat_to_matrix())),"position"in t&&(r=r.mat_mul([].translate(t.position))),r};try{module.exports.g=g,module.exports.for_each=for_each}catch(t){g.for_each=for_each,console.log("Not a node.js module")}
+  const g = {
+    _initalize: function() {},
+    _update: function() {},
+    is_running: true,
+
+    timer: function(){
+      this._last = (new Date()).getTime();
+      this._start = (new Date()).getTime();
+
+      this.tick = function()
+      {
+        var t = (new Date()).getTime();
+        var dt = t - this._last;
+        this._last = t;
+        return dt / 1000;
+      };
+
+      this.total = function()
+      {
+        return (new Date()).getTime() - this._start;
+      };
+    },
+
+    initialize: function(f) { g._initialize = f; return this; },
+
+    update: function(f) { g._update = f; return this; },
+
+    canvas: function(dom_element) { g._canvas = dom_element; return this; },
+
+    start: function(opts)
+    {
+      var req_frame = window.requestAnimationFrame       ||
+                      window.webkitRequestAnimationFrame ||
+                      window.mozRequestAnimationFrame    ||
+                      window.oRequestAnimationFrame      ||
+                      window.msRequestAnimationFrame;
+      var step_timer = new g.timer();
+
+      // if we are a browser, setup socket.io to connect to the server
+      // if (g.web)
+      // {
+      //   g.web._socket = io();
+      //   g.web._socket.binaryType = 'arraybuffer';
+      //   g.web._socket.on('message', g.web._on_message);
+
+      //   for (var e in g.web._on_event)
+      //   {
+      //     g.web._socket.on(e, g.web._on_event[e]);
+      //   }
+
+      //   g.web.socket = function() { return g.web._socket; }
+      //         if (!g.web.gfx._initalize()) { return; }
+      //         g.web.snd._initalize();
+      // }
+
+      if (!g.web.gfx._initalize()) { return; }
+      g.web.snd._initalize();
+
+      // custom initialization
+      if (!g._initialize())
+      {
+        console.error('initialize_func(): returned false.');
+        return;
+      }
+
+      // update, and render if appropriate
+      var frames = 0;
+      var time_since_sec = 0;
+      var update = function() {
+        var dt = step_timer.tick();
+
+        if (g.is_running && (dt > 0 && dt < 1) && isFinite(dt))
+        {
+          g._update(dt);
+
+          if (g.web)
+          {
+            g.web._draw(dt);
+          }
+        }
+
+        if (g.web) { req_frame(update); }
+
+        if (opts && opts.print_fps)
+        {
+          if (time_since_sec >= 1)
+          {
+            console.log(frames + ' fps');
+            frames = 0;
+            time_since_sec = 0;
+          }
+          time_since_sec += dt;
+          frames++;
+        }
+      };
+
+      if (g.web) { req_frame(update); }
+    },
+
+    voxel: {
+      create: function(voxel_data)
+      {
+        // process data into uniform type here.
+        var palette = null;
+        var locations = [];
+        const RGBA = voxel_data.RGBA.slice();
+
+        // grab the palette if it exists
+        if (voxel_data.palette)
+        {
+          palette = new Array(voxel_data.palette.length / 4);
+          for (var pi = 0; pi < voxel_data.palette.length; pi += 4)
+          {
+            palette[pi >> 2] = [voxel_data.palette[pi + 0] / 255, voxel_data.palette[pi + 1] / 255, voxel_data.palette[pi + 2] / 255];//, palette[pi].a / 255];
+          }
+        }
+
+        // convert to uniform data storage
+        if (voxel_data.SIZE)
+        {
+          var cells = new Array(voxel_data.SIZE.x);
+          for (var xi = voxel_data.SIZE.x; xi--;)
+          {
+            cells[xi] = new Array(voxel_data.SIZE.z);
+            for (var yi = voxel_data.SIZE.z; yi--;)
+            {
+              cells[xi][yi] = new Array(voxel_data.SIZE.y);
+              cells[xi][yi].fill(0);
+            }
+          }
+
+          for (var vi = voxel_data.XYZI.length; vi--;)
+          {
+            const set = voxel_data.XYZI[vi];
+            cells[set.x][set.z][set.y] = set.c - 1;
+          }
+
+          if (voxel_data.RGBA && typeof(voxel_data.RGBA[0]) == 'object')
+          {
+            palette = voxel_data.RGBA;
+            for (var pi = palette.length; pi--;)
+            {
+              if (!palette[pi]) { continue; }
+              palette[pi] = [palette[pi].r / 255, palette[pi].g / 255, palette[pi].b / 255];//, palette[pi].a / 255];
+            }
+          }
+
+          voxel_data = {
+            width: voxel_data.SIZE.x,
+            height: voxel_data.SIZE.z,
+            depth: voxel_data.SIZE.y,
+            scale: voxel_data.scale || 1,
+            palette: palette,
+            cells: cells
+          };
+        }
+
+        const w = voxel_data.width;
+        const h = voxel_data.height;
+        const d = voxel_data.depth;
+        const s = voxel_data.scale || 1;
+        var cells = voxel_data.cells;
+        var center_of_mass = [0, 0, 0];
+
+        return {
+          width: w,
+          height: h,
+          depth: d,
+          scale: s,
+          palette: palette,
+          cells: cells,
+          center_of_mass: function(force)
+          {
+            if (force || center_of_mass.sum() == 0)
+            {
+              center_of_mass = [0, 0, 0];
+              var cell_count = 0;
+              for (var x = w; x--;)
+              for (var y = h; y--;)
+              for (var z = d; z--;)
+              {
+                if (cells[x][y][z] > 0)
+                {
+                  center_of_mass = center_of_mass.add([x, y, z]);
+                  cell_count++;
+                }
+              }
+
+              center_of_mass = center_of_mass.mul(s / cell_count);
+            }
+
+            return center_of_mass;
+          },
+          intersection: function(pos, dir)
+          {
+            pos = pos.mul(1/s);
+            dir = dir.mul(1/s);
+            var fp = pos.floor(), cp = pos.ceil();
+
+            let itrs = Math.ceil(dir.len()) * 5;
+            for (var p = 0; p < itrs; p++)
+            {
+              const pd = pos.add(dir.mul(p / itrs));
+              const pd_f = pd.floor();
+              const pd_c = pd.ceil();
+
+              if (pd_f[0] < 0 || pd_f[0] >= w) { return false; }
+              if (pd_f[1] < 0 || pd_f[1] >= h) { return false; }
+              if (pd_f[2] < 0 || pd_f[2] >= d) { return false; }
+
+              if (cells[pd_f[0]][pd_f[1]][pd_f[2]] > 0)
+              {
+                var norm = fp.sub(pd_f);
+                if (norm.dot(norm) > 0) { norm = norm.norm(); }
+
+                var pen = [0, 0, 0];
+
+                for (var i = 0; i < 3; i++)
+                {
+                  if (dir[i] >= 0) { pen[i] = pd[i] - pd_f[i]; }
+                  else             { pen[i] = pd[i] - pd_c[i]; }
+                }
+
+                return {
+                  point: pd,
+                  normal: norm,
+                  penetration: pen
+                };
+              }
+            }
+
+            return false;
+          },
+          sample: function(pos)
+          {
+            pos = pos.mul(1/s);
+            var fp = pos.floor();
+
+            if (fp[0] < 0 || fp[0] >= w) { return undefined; }
+            if (fp[1] < 0 || fp[1] >= h) { return undefined; }
+            if (fp[2] < 0 || fp[2] >= d) { return undefined; }
+
+            return {
+              point: fp.mul(s),
+              cell: cells[fp[0]][fp[1]][fp[2]]
+            }
+          },
+          each_voxel: function(cb)
+          {
+            for (var x = 0; x < w; x++)
+            for (var y = 0; y < h; y++)
+            for (var z = 0; z < d; z++)
+            {
+              if (cells[x][y][z])
+              {
+                if (cb(x, y, z)) { return; }
+              }
+            }
+          },
+          downsample: function(factor)
+          {
+            var vox_data = {
+              SIZE: {
+                x: w / factor,
+                y: d / factor,
+                z: h / factor,
+              },
+              XYZI: [],
+              RGBA: RGBA,
+              scale: voxel_data.scale * factor
+              // palette: palette
+            };
+
+            for (var ds_x = 0; ds_x < vox_data.SIZE.x; ds_x++)
+            for (var ds_y = 0; ds_y < vox_data.SIZE.z; ds_y++)
+            for (var ds_z = 0; ds_z < vox_data.SIZE.y; ds_z++)
+            {
+
+              // find the mode of this downsampled block
+              var filled = 0;
+              var empty = 0;
+              var last_id = 0;
+              for (var x = ds_x * factor; x < (ds_x + 1) * factor; x++)
+              for (var y = ds_y * factor; y < (ds_y + 1) * factor; y++)
+              for (var z = ds_z * factor; z < (ds_z + 1) * factor; z++)
+              {
+                const id = cells[x][y][z];
+                if (id <= 0) { empty += 1; }
+                else
+                {
+                  filled += 1;
+                  last_id = id;
+                }
+              }
+
+              var mode = 0;
+              if (filled > empty / 2)
+              {
+                mode = last_id;
+              }
+
+              if (mode)
+              vox_data.XYZI.push({
+                x: ds_x,
+                y: ds_z,
+                z: ds_y,
+                c: mode + 1
+              });
+            }
+
+            return g.voxel.create(vox_data);
+          }
+        };
+      }
+    },
+
+    animation: {
+      create: function(json)
+      {
+        var frames = [];
+        var tags = {};
+
+        for_each(json.meta.frameTags, (frame_tag) => {
+          tags[frame_tag.name] = [];
+          switch (frame_tag.direction)
+          {
+            case 'forward':
+              for (var i = frame_tag.from; i <= frame_tag.to; ++i)
+              {
+                tags[frame_tag.name].push(i);
+              }
+              break;
+            case 'pingpong':
+              for (var i = frame_tag.from; i <= frame_tag.to; ++i)
+              {
+                tags[frame_tag.name].push(i);
+              }
+              for (var i = frame_tag.to; i >= frame_tag.from; --i)
+              {
+                tags[frame_tag.name].push(i);
+              }
+              break;
+          }
+
+          tag = tags[frame_tag.name];
+        });
+
+        for_each(json.frames, (frame_meta) => {
+          const frame = frame_meta.frame;
+          frames.push({
+            asset: frame_meta.asset,
+            sec: frame_meta.duration / 1000
+          });
+        });
+
+        return function() {
+          this.frame_idx = 0;
+          this.frame_duration = frames[0].sec;
+          this.paused = false;
+          this.speed = 1;
+          this.tag = tag;
+          this.tags = tags;
+          this.queue = [];
+
+          this.current_frame = function()
+          {
+            return frames[this.tag[this.frame_idx]];
+          }
+
+          this.pause = function(pause) { this.paused = pause; }
+
+          this.tick = function(dt)
+          {
+            dt *= this.speed;
+
+            if(!this.paused)
+            while (dt > 0)
+            {
+              const prev_dur = this.frame_duration;
+              this.frame_duration -= dt;
+
+              if (this.frame_duration <= 0)
+              {
+                this.frame_idx++;
+                if (this.frame_idx >= this.tag.length)
+                {
+                  if (this.queue.length > 0)
+                  {
+                    this.tag = this.queue.pop();
+                  }
+
+                  this.frame_idx = 0;
+                }
+                this.frame_duration = this.current_frame().sec;
+              }
+
+              dt -= prev_dur;
+            }
+          };
+
+          this.set = function(tag)
+          {
+            this.frame_idx = 0;
+            this.tag = this.tags[tag];
+          }
+        };
+      }
+    },
+
+    camera: {
+      create: function()
+      {
+        var _q = [0,0,0,1];
+        var _view = [].I(4);
+        var _proj = [].I(4);
+        var _pos = [0,0,0];
+        var _forward = [0,0,-1];
+        var _up = [0,1,0];
+        var _left = [-1,0,0];
+        var is_listener = true;
+
+        var cam = {
+          look_at: function(position, subject, up)
+          {
+            if (position && subject && up)
+            {
+              _pos = position;
+              _forward = position.sub(subject).norm();
+              _up = up.norm();
+              _view = [].view(_pos, _forward, _up);
+              _left = _q.quat_rotate_vector([-1, 0, 0]);
+            }
+
+            return _view;
+          },
+          orientation: function(q)
+          {
+            if (q) { _q = q; }
+
+            _up = _q.quat_rotate_vector([0, 1, 0]);
+            _forward = _q.quat_rotate_vector([0, 0, -1]);
+            _left = _q.quat_rotate_vector([-1, 0, 0]);
+
+            return _q;
+          },
+          tilt: function(d_yaw, d_pitch, d_roll)
+          {
+            d_yaw = d_yaw || 0;
+            d_pitch = d_pitch || 0;
+            d_roll = d_roll || 0;
+
+            const dqx = [].quat_rotation([1, 0, 0], d_yaw);
+            const dqy = [].quat_rotation([0, 1, 0], d_pitch);
+            const dqz = [].quat_rotation([0, 0, 1], d_roll);
+            const dq = dqx.quat_mul(dqy).quat_mul(dqz);
+            _q = _q.quat_mul(dq);
+
+            _up = _q.quat_rotate_vector([0, 1, 0]);
+            _forward = _q.quat_rotate_vector([0, 0, -1]);
+            _left = _q.quat_rotate_vector([-1, 0, 0]);
+
+            this.view(_pos, _forward, _up);
+          },
+          position: function(p)
+          {
+            if (p)
+            {
+              _pos = p;
+              this.view(_pos, _forward, _up);
+            }
+
+            return _pos;
+          },
+          up: function(u)
+          {
+            if (u)
+            {
+              _up = u;
+              this.view(_pos, _forward, _up);
+            }
+
+            return _up;
+          },
+          left: function()
+          {
+            return _left;
+          },
+          forward: function(f)
+          {
+            if (f)
+            {
+              _forward = f;
+              this.view(_pos, _forward, _up);
+            }
+
+            return _forward;
+          },
+          projection: function() { return _proj; },
+          perspective: function(fov, near, far)
+          {
+            fov = fov || Math.PI / 2;
+            near = near || 0.1;
+            far = far || 1000;
+
+            _proj = [].perspective(fov, g.web.gfx.aspect(), near, far);
+
+            return this;
+          },
+          orthographic: function(width, height, near, far)
+          {
+            const a = g.web.gfx.aspect();
+            near = near || 0.1;
+            far = far || 500;
+            _proj = [].orthographic(width/2, -width/2, height/2, -height/2, near, far);
+
+            return this;
+          }
+        };
+
+        cam.view = (position, forward, up) => {
+          if (position && forward && up)
+          {
+            _pos = position;
+            _forward = forward.norm();
+            _up = up.norm();
+            _left = _up.cross(_forward);
+            _up = _forward.cross(_left);
+            _view = [].view(_pos, _forward, _up);
+            // _left = _q.quat_rotate_vector([-1, 0, 0]);
+
+            if (is_listener && g.web && g.web._audio_ctx) { g.web.snd.listener.from_camera(cam); }
+          }
+
+          return _view;
+        };
+
+        return cam;
+      },
+      fps: function(opts)
+      {
+        var cam = g.camera.create();
+
+        cam.mass = 1.0;
+        cam.force = 1.0;
+        cam.friction = 1.0;
+        cam.forces = [];
+        cam.max_pitch = Math.PI / 2;
+        cam.min_pitch = -Math.PI / 2;
+
+        var pitch = 0;
+        var yaw = 0;
+        var velocity = [0, 0, 0];
+        var last_collisions = [];
+        var coll_offsets = [];
+        var coll_dirs = [];
+
+        if (opts && opts.collision_rep)
+        {
+
+        }
+        else
+        {
+          // default cube collision rep
+          for (var i = -1; i <= 1; i++)
+          {
+            if (0 == i) { continue; }
+            coll_dirs.push([i, 0, 0].mul(0.125));
+            coll_dirs.push([0, i, 0].mul(1));
+            coll_dirs.push([0, 0, i].mul(0.125));
+          }
+
+          for (var x = -1; x <= 1; x++)
+          for (var y = -1; y <= 1; y++)
+          for (var z = -1; z <= 1; z++)
+          {
+            if (x + y + z == 0) { continue; }
+            coll_offsets.push([x, y, z].mul(0.25));
+          }
+        }
+
+        cam.walk = {
+          forward: (dt)=> {
+            if (cam.is_airborn()) { dt *= 0.25; }
+            var accel = cam.forward().mul(-dt * cam.force / cam.mass);
+            velocity = velocity.add(accel);
+          },
+          backward: (dt)=> {
+            if (cam.is_airborn()) { dt *= 0.25; }
+            var accel = cam.forward().mul(dt * cam.force / cam.mass);
+            velocity = velocity.add(accel);
+          },
+          left: (dt)=> {
+            if (cam.is_airborn()) { dt *= 0.25; }
+            var accel = cam.left().mul(dt * cam.force / cam.mass);
+            velocity = velocity.add(accel);
+          },
+          right: (dt)=> {
+            if (cam.is_airborn()) { dt *= 0.25; }
+            var accel = cam.left().mul(-dt * cam.force / cam.mass);
+            velocity = velocity.add(accel);
+          }
+        };
+
+        cam.force = (force, dt) => {
+          var accel = force.mul(dt / cam.mass);
+          velocity = velocity.add(accel);
+        };
+
+        cam.velocity = (vel) => {
+          if (vel) { velocity = vel; }
+          else { return velocity; }
+        };
+
+        cam.tilt = (d_pitch, d_yaw) => {
+          const new_pitch = pitch + d_pitch;
+
+          if (new_pitch > cam.min_pitch && new_pitch < cam.max_pitch)
+          {
+            pitch = new_pitch;
+          }
+
+          yaw += d_yaw;
+
+          const pos = cam.position();
+
+          const qx = [].quat_rotation([1, 0, 0], pitch);
+          const qy = [].quat_rotation([0, 1, 0], yaw);
+          const q = cam._q = qy.quat_mul(qx)
+
+          const up = q.quat_rotate_vector([0, 1, 0]);
+          const forward = q.quat_rotate_vector([0, 0, -1]);
+          // cam._left = cam._q.quat_rotate_vector([-1, 0, 0]));
+
+          cam.view(pos, forward, up);
+        };
+
+        cam.pitch = (p) => {
+          if (p)
+          {
+            pitch = p;
+
+            const qx = [].quat_rotation([1, 0, 0], pitch);
+            const qy = [].quat_rotation([0, 1, 0], yaw);
+            const q = qx.quat_mul(qy);
+
+            let up = qx.quat_rotate_vector([0, 1, 0]);
+            up = qy.quat_rotate_vector(up);
+
+            let forward = qx.quat_rotate_vector([0, 0, 1]);
+            forward = qy.quat_rotate_vector(forward);
+
+            cam.view(cam.position(), forward, up);
+          }
+          return pitch;
+        };
+
+        cam.yaw = (y) => {
+          if (y)
+          {
+            yaw = y;
+
+            const qx = [].quat_rotation([1, 0, 0], pitch);
+            const qy = [].quat_rotation([0, 1, 0], yaw);
+            const q = qx.quat_mul(qy)
+
+            const up = q.quat_rotate_vector([0, 1, 0]);
+            const forward = q.quat_rotate_vector([0, 0, 1]);
+            cam.forward(forward);
+          }
+          return yaw;
+        };
+
+        cam.last_collisions = () => { return last_collisions; }
+
+        cam.is_airborn = () => {
+          var sum = 0;
+          for (var i = 0; i < last_collisions.length; i++)
+          {
+            sum += last_collisions[i].normal.dot([0, 1, 0])
+          }
+          return sum < 0.0001;
+        }
+
+        cam.update = (dt)=> {
+          var new_vel = [0, 0, 0];
+
+          if (opts.dynamics)
+          {
+            new_vel = opts.dynamics(cam, dt);
+          }
+          else
+          { // default dynamics
+            var net_force = [0, 0, 0];
+
+            for (var i = 0; i < cam.forces.length; i++)
+            {
+              net_force = net_force.add(cam.forces[i]);
+            }
+
+            const net_accel = net_force.mul(dt / cam.mass);
+            var new_vel = velocity.add(net_accel);
+          }
+
+          last_collisions = [];
+
+          if (opts && opts.collides)
+          for (var i = coll_offsets.length; i--;)
+          for (var j = coll_dirs.length; j--;)
+          {
+            var dir = coll_dirs[j];
+
+            const new_vel_dt = new_vel.mul(dt);
+            if (dir.dot(new_vel_dt) > 0)
+            {
+              dir = dir.add(new_vel_dt);
+            }
+
+            const collision = opts.collides(
+              coll_offsets[i].add(cam.position()),
+              dir
+            );
+
+            if (collision)
+            {
+              if (collision.normal.dot(velocity) - 0.001 >= 0) { continue; }
+
+              last_collisions.push(collision);
+
+              if (opts.on_collision) { opts.on_collision(cam, collision); }
+              else
+              {
+                const cancled = new_vel.mul(collision.normal.abs());
+                new_vel = new_vel.sub(cancled);
+              }
+            }
+          }
+
+          if (last_collisions.length > 0)
+          {
+            new_vel = new_vel.add(new_vel.mul(-cam.friction * dt));
+          }
+
+          if (!isFinite(new_vel[0]))
+          {
+            console.log('why');
+          }
+
+          velocity = new_vel;
+          const pos = cam.position().add(velocity.mul(dt));
+
+          const qx = [].quat_rotation([1, 0, 0], pitch);
+          const qy = [].quat_rotation([0, 1, 0], yaw);
+          const q = cam._q = qy.quat_mul(qx)
+
+          const up = q.quat_rotate_vector([0, 1, 0]);
+          const forward = q.quat_rotate_vector([0, 0, -1]);
+          // cam._left = cam._q.quat_rotate_vector([-1, 0, 0]));
+
+          cam.view(pos, forward, up);
+
+        };
+
+        return cam;
+      }
+    },
+  };
+
+  Array.prototype.within_sphere = function(sphere, position_key, item_cb)
+  {
+    if (typeof(position_key) == 'string')
+    {
+      const key_str = position_key;
+      position_key = function(item) { return item[key_str]; }
+    }
+
+    for (var i = 0; i < this.length; ++i)
+    {
+      const pos = position_key(this[i]);
+      if (pos.sub(sphere).len() <= sphere[3]) { return item_cb(i); }
+    }
+  }
+
+  Array.prototype.is_matrix = function()
+  {
+    return this[0] && this[0].constructor === Array;
+  }
+
+  Array.prototype.new_matrix = function(rows, cols)
+  {
+    var M = new Array(rows);
+    for (var r = rows; r--;)
+    {
+      M[r] = new Array(cols);
+      for (var c = cols; c--;) { M[r][c] = 0; }
+    }
+    return M;
+  };
+
+  Array.prototype.sum = function()
+  {
+    var sum = 0;
+    for (var i = this.length; i--;) { sum += this[i]; }
+    return sum;
+  }
+
+  Array.prototype.add = function(v)
+  {
+    var r = new Array(this.length);
+
+    if (typeof v === 'number')        { for (var i = this.length; i--;) r[i] = this[i] + v; }
+    else if (v.constructor === Array) { for (var i = this.length; i--;) r[i] = this[i] + v[i]; }
+
+    return r;
+  };
+
+  Array.prototype.sub = function(v)
+  {
+    var r = new Array(this.length);
+
+    if (typeof v === 'number')        { for (var i = this.length; i--;) r[i] = this[i] - v; }
+    else if (v.constructor === Array) { for (var i = this.length; i--;) r[i] = this[i] - v[i]; }
+
+    return r;
+  };
+
+  Array.prototype.floor = function()
+  {
+    var r = new Array(this.length);
+
+    for (var i = this.length; i--;) r[i] = Math.floor(this[i]);
+
+    return r;
+  };
+
+  Array.prototype.ceil = function()
+  {
+    var r = new Array(this.length);
+
+    for (var i = this.length; i--;) r[i] = Math.ceil(this[i]);
+
+    return r;
+  };
+
+  Array.prototype.abs = function()
+  {
+    var r = new Array(this.length);
+
+    for (var i = this.length; i--;) r[i] = Math.abs(this[i]);
+
+    return r;
+  };
+
+  Array.prototype.mul = function(v)
+  {
+    var w = new Array(this.length);
+
+    if (typeof v === 'number')
+    {
+      if (this.is_matrix())
+      {
+        const dims = this.mat_dims();
+        for (var r = dims[0]; r--;)
+        {
+          w[r] = new Array(dims[1]);
+          for (var c = dims[1]; c--;)
+          {
+            w[r][c] = this[r][c] * v;
+          }
+        }
+      }
+      else
+      {
+        for (var i = this.length; i--;) w[i] = this[i] * v;
+      }
+    }
+    else if (v.constructor === Array && typeof v[0] === 'number') { for (var i = this.length; i--;) w[i] = this[i] * v[i]; }
+
+    return w;
+  };
+
+  Array.prototype.eq = function(v)
+  {
+    for (var i = 0; i < this.length; i++)
+    {
+      if (this[i] !== v[i]) { return false; }
+    }
+
+    return true;
+  };
+
+  Array.prototype.pow = function(ex)
+  {
+    var w = new Array(this.length);
+
+    if (typeof ex === 'number')
+    {
+      if (this.is_matrix())
+      {
+        const dims = this.mat_dims();
+        for (var r = dims[0]; r--;)
+        {
+          w[r] = new Array(dims[1]);
+          for (var c = dims[1]; c--;)
+          {
+            w[r][c] = Math.pow(this[r][c], ex);
+          }
+        }
+      }
+      else
+      {
+        for (var i = this.length; i--;) w[i] = Math.pow(this[i], ex);
+      }
+    }
+    else if (v.constructor === Array && typeof ex[0] === 'number') { for (var i = this.length; i--;) w[i] = Math.pow(this[i], ex[i]); }
+
+    return w;
+  };
+
+  Array.prototype.div = function(v)
+  {
+    var r = new Array(this.length);
+
+    if (typeof v === 'number')        { for (var i = this.length; i--;) r[i] = this[i] / v; }
+    else if (v.constructor === Array) { for (var i = this.length; i--;) r[i] = this[i] / v[i]; }
+
+    return r;
+  };
+
+  Array.prototype.lerp = function(v, p)
+  {
+    var r = new Array(this.length);
+    for (var i = 0; i < r.length; i++) { r[i] = this[i] * (1-p) + v[i] * p; }
+    return r;
+  };
+
+  Array.prototype.len = function()
+  {
+    if (typeof this[0] !== 'number') { return NaN; }
+
+    return Math.sqrt(this.dot(this));
+  };
+
+  Array.prototype.dist = function(v)
+  {
+    return this.sub(v).len();
+  }
+
+  Array.prototype.norm = function()
+  {
+    if (typeof this[0] !== 'number') { return null; }
+
+    return this.div(this.len());
+  }
+
+  Array.prototype.mat_dims = function()
+  {
+    return [ this.length, this[0].length ];
+  };
+
+  Array.prototype.intersects_sphere = function(origin, radius)
+  {
+    const l = origin;
+    const s = this.dot(l);
+    const l_2 = l.dot(l);
+    const r_2 = radius * radius;
+    var t = 0;
+
+    if (s < 0 && l_2 > r_2) { return false; }
+
+    const m_2 = l_2 - s * s;
+
+    if (m_2 > r_2) { return false; }
+
+    const q = Math.sqrt(r_2 - m_2);
+
+    if (r_2 - m_2)
+    {
+      t = s - q;
+    }
+    else
+    {
+      t = s + q;
+    }
+
+    return this.mul(t);
+  };
+
+  Array.prototype.mat_mul = function(m)
+  {
+    var M = this.matrix();
+    var N = m.matrix();
+
+    const m0_dims = M.mat_dims();
+    const m1_dims = N.mat_dims();
+
+    var O = this.new_matrix(m0_dims[0], m1_dims[1]);
+
+    var inner = m0_dims[1];
+    for (var r = m0_dims[0]; r--;)
+    for (var c = m1_dims[1]; c--;)
+    {
+      O[r][c] = 0;
+      for (var i = inner; i--;) { O[r][c] += M[r][i] * N[i][c]; }
+    }
+
+    return O;
+  };
+
+  Array.prototype.swap_rows = function(row_i, row_j)
+  {
+    const tmp = this[i];
+    this[i] = this[j];
+    this[j] = tmp;
+    return this;
+  };
+
+  Array.prototype.augment = function()
+  {
+    const dims = this.mat_dims();
+    const R = dims[0], C = dims[1];
+      const Mc = C * 2;
+      var M = this.new_matrix(R, Mc);
+
+      for (var r = R; r--;)
+      {
+          // form the identity on the right hand side
+          M[r][r + C] = 1.0;
+
+          for (var c = C; c--;)
+          {
+              M[r][c] = this[r][c];
+          }
+      }
+
+      return M;
+  };
+
+  Array.prototype.rref = function()
+  {
+    var M = this.matrix();
+    const dims = M.mat_dims();
+    const R = dims[0], C = dims[1];
+    var piv_c = 0;
+
+      // compute upper diagonal
+      for (var r = 0; r < R; r++)
+      {
+          // Check if the piv column of row r is zero. If it is, lets
+          // try to find a row below that has a non-zero column
+          if (M[r][piv_c] == 0)
+          {
+              var swap_ri = -1;
+              for (var ri = r + 1; ri < R; ri++)
+              {
+                  if (M[ri][piv_c] != 0)
+                  {
+                      swap_ri = ri;
+                      break;
+                  }
+              }
+
+              if (swap_ri > -1) { M.swap_rows(swap_ri, r); }
+          }
+
+          { // next row, scale so leading coefficient is 1
+              const d = 1 / M[r][piv_c];
+
+              // scale row
+              for (var c = piv_c; c < C; c++) { M[r][c] *= d; }
+          }
+
+
+          for (var ri = 0; ri < R; ri++)
+          {
+              // skip zero elements and skip row r
+              if (M[ri][piv_c] == 0 || ri == r) { continue; }
+
+              const d = M[ri][piv_c];
+
+              // scale row then subtract the row above to zero out
+              // other elements in this column
+              for (var c = piv_c; c < C; c++)
+              {
+                  M[ri][c] -= d * M[r][c];
+              }
+          }
+
+          ++piv_c;
+      }
+
+    return M;
+  };
+
+  Array.prototype.inverse = function()
+  {
+    const dims = this.mat_dims();
+    const R = dims[0], C = dims[1];
+    const _rref = this.augment().rref();
+
+    var M = new Array(R);
+
+    for (var r = R; r--;)
+    {
+      var s = _rref[r].slice(C, 2 * C);
+      M[r] = s;
+    }
+
+    return M;
+  };
+
+  Array.prototype.flatten = function()
+  {
+    var v = [];
+
+    if (typeof(this[0]) === 'number') { v = this; }
+    else
+    {
+      for (var i = 0; i < this.length; ++i)
+      {
+        v = v.concat(this[i].flatten());
+      }
+    }
+
+    return v;
+  };
+
+  Array.prototype.as_Float32Array_bin = function() {
+    const flat = this.flatten();
+    var buf = new ArrayBuffer(flat.length * 4);
+    var a = new Float32Array(buf);
+
+    for (var i = flat.length; i--;)
+    {
+      a[i] = flat[i];
+    }
+
+    return buf;
+  };
+
+  Array.prototype.as_Float32Array = function() {
+    return new Float32Array(this.flatten());
+  };
+
+  Array.prototype.as_Int32Array = function(first_argument) {
+    return new Int32Array(this.flatten());
+  };
+
+  Array.prototype.as_Int16Array = function(first_argument) {
+    return new Int16Array(this.flatten());
+  };
+
+  Array.prototype.transpose = function()
+  {
+    const dims = this.mat_dims();
+    var M = this.new_matrix(dims[1], dims[0]);
+
+    for (var r = dims[0]; r--;)
+    for (var c = dims[1]; c--;)
+    {
+      M[c][r] = this[r][c];
+    }
+
+    return M;
+  };
+
+  Array.prototype.matrix = function()
+  {
+    if (this[0].constructor === Array) { return this; }
+    else { return [this].transpose(); }
+  };
+
+  Array.prototype.random_unit = function()
+  {
+    return [Math.random(), Math.random(), Math.random()].sub([0.5, 0.5, 0.5]).norm();
+  }
+
+  Array.prototype.I = function(dim)
+  {
+    var M = this.new_matrix(dim, dim);
+
+    for (var r = dim; r--;)
+    for (var c = dim; c--;)
+    {
+      M[c][r] = r == c ? 1 : 0;
+    }
+
+    return M;
+  };
+
+  Array.prototype.dot = function(v)
+  {
+    var s = 0;
+    for (var i = this.length; i--;) s += this[i] * v[i];
+    return s;
+  }
+
+  Array.prototype.cross = function(v)
+  {
+    return [
+      this[1] * v[2] - this[2] * v[1],
+      this[2] * v[0] - this[0] * v[2],
+      this[0] * v[1] - this[1] * v[0]
+    ];
+  }
+
+  Array.prototype.mat_scale = function(s)
+  {
+    return [
+      [    s[0], 0,    0,    0    ],
+      [    0,    s[1], 0,    0    ],
+      [    0,    0,    s[2], 0    ],
+      [    0,    0,    0,    1.   ]
+    ];
+  };
+
+  Array.prototype.translate = function(t)
+  {
+    return [
+      [    1,    0,    0,    0    ],
+      [    0,    1,    0,    0    ],
+      [    0,    0,    1,    0    ],
+      [  t[0], t[1], t[2],   1.   ]
+    ];
+  };
+
+  Array.prototype.perspective = function(fov, aspect, n, f)
+  {
+    const a = Math.tan(Math.PI * 0.5 - 0.5 * fov);
+    const fsn = f - n;
+    const fpn = f + n;
+    const ftn = f * n;
+
+    return [
+           [  a/aspect,         0,          0,         0 ],
+           [         0,         a,          0,         0 ],
+           [         0,         0,   -fpn/fsn,        -1 ],
+           [         0,         0, -2*ftn/fsn,         0 ]
+    ];
+
+    // return [
+    //        [  a/aspect,         0,          0,         0 ],
+    //        [         0,         a,          0,         0 ],
+    //        [         0,         0,   -fpn/fsn,        -1 ],
+    //        [         0,         0, -2*ftn/fsn,         1 ]
+    // ];
+  };
+
+  Array.prototype.orthographic = function(r, l, t, b, n, f)
+  {
+    const rml = r - l;
+    const rpl = r + l;
+    const tmb = t - b;
+    const tpb = t + b;
+    const fmn = f - n;
+    const fpn = f + n;
+
+    // return [
+    //        [  2/rml,         0,          0, -rpl/rml ],
+    //        [      0,     2/tmb,          0, -tpb/tmb ],
+    //        [      0,         0,     -2/fmn, -fpn/fmn ],
+    //        [      0,         0,          0,        1 ]
+    // ];
+
+    return [
+      [2/rml,     0,      0,     0],
+      [    0, 2/tmb,      0,     0],
+      [    0,     0, -2/fmn,     0],
+      [    0,     0,      0,     1],
+    ];
+  };
+
+  Array.prototype.view = function(position, forward, up)
+  {
+    const r = forward.cross(up).mul(1);
+    const u = up;
+    const t = r.cross(forward);
+    const f = forward;
+    const p = position;
+
+    var ori = [
+      [ r[0], t[0], f[0], 0 ],
+      [ r[1], t[1], f[1], 0 ],
+      [ r[2], t[2], f[2], 0 ],
+      [    0,    0,    0, 1 ]
+    ];
+
+    var trans = [
+      [     1,     0,     0,    0 ],
+      [     0,     1,     0,    0 ],
+      [     0,     0,     1,    0 ],
+      [ -p[0], -p[1], -p[2],    1 ]
+    ];
+
+    //return ori;
+    return trans.mat_mul(ori);
+    //return ori.mat_mul(trans);
+  };
+
+  Array.prototype.rotation = function(axis, angle)
+  {
+    const a = axis;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const omc = 1 - c;
+
+    return [
+      [c+a[0]*a[0]*omc,      a[1]*a[0]*omc+a[2]*s, a[2]*a[0]*omc-a[1]*s, 0],
+      [a[0]*a[1]*omc-a[2]*s, c+a[1]*a[1]*omc,      a[2]*a[1]*omc+a[0]*s, 0],
+      [a[0]*a[2]*omc+a[1]*s, a[1]*a[2]*omc-a[0]*s, c+a[2]*a[2]*omc,      0],
+      [                   0,                    0,                    0, 1]
+    ];
+  };
+
+
+  Array.prototype.scale = function(s)
+  {
+      var m;
+      if (typeof(s) === 'number')
+      {
+          m = [].I(4).mul(s);
+          m[3][3] = 1;
+      }
+      else if (s instanceof Array)
+      {
+          m = [].I(s.length);
+          for (var i = s.length; i--;)
+          {
+              m[i][i] = s[i];
+          }
+      }
+
+    return m;
+  }
+
+
+  Array.prototype.quat_rotation = function(axis, angle)
+  {
+    var a_2 = angle / 2;
+    var a = Math.sin(a_2);
+
+    const _axis = axis.mul(a);
+
+    return _axis.concat(Math.cos(a_2));
+  };
+
+
+  Array.prototype.quat_rotate_vector = function(v)
+  {
+    var q_xyz = this.slice(0, 3);
+
+    var t = q_xyz.cross(v);
+    t = t.mul(2);
+
+    var u = q_xyz.cross(t);
+    t = t.mul(this[3]);
+
+    return v.add(t).add(u);
+  };
+
+
+  Array.prototype.quat_to_matrix = function()
+  {
+    var v = this;
+    var a = v[3], b = v[0], c = v[1], d = v[2];
+    var a2 = a * a, b2 = b * b, c2 = c * c, d2 = d * d;
+
+    return [
+        [ a2 + b2 - c2 - d2, 2*b*c - 2*a*d  , 2*b*d + 2*a*c  , 0],
+        [ 2*b*c + 2*a*d  , a2 - b2 + c2 - d2, 2*c*d - 2*a*b  , 0],
+        [ 2*b*d - 2*a*c  , 2*c*d + 2*a*b  , a2 - b2 - c2 + d2, 0],
+        [ 0                , 0                , 0                , 1],
+    ];
+  };
+
+  Array.prototype.quat_conjugate = function()
+  {
+    return this.mul([-1, -1, -1, 1]);
+  }
+
+  Array.prototype.quat_inverse = function()
+  {
+    const mag_2 = this.dot(this);
+    return this.quat_conjugate().mul(1/mag_2);
+  }
+
+  Array.prototype.quat_mul = function(q)
+  {
+    // var q0 = this;
+    // var q1 = q;
+
+    // var t3 = q0.slice(0, 3);
+    // var o3 = q1.slice(0, 3);
+
+    // var r = t3.cross(o3);
+    // var w = t3.mul(q1[3]);
+    // r = r.add(w);
+    // w = o3.mul(q0[3]);
+    // r = r.add(w);
+
+    // return r.concat(q0[3] * q1[3] - t3.dot(o3));
+    return [
+        this[3] * q[0] + this[0] * q[3] + this[1] * q[2] - this[2] * q[1],  // i
+        this[3] * q[1] - this[0] * q[2] + this[1] * q[3] + this[2] * q[0],  // j
+        this[3] * q[2] + this[0] * q[1] - this[1] * q[0] + this[2] * q[3],   // k
+        this[3] * q[3] - this[0] * q[0] - this[1] * q[1] - this[2] * q[2],  // 1
+    ];
+  };
+
+  String.prototype.format = function(value_list)
+  {
+    const parts = this.split('{}');
+    var out = '';
+    var vi = 0;
+
+    for (var i = 0; i < parts.length; i++)
+    {
+      out += parts[i];
+      if (vi < value_list.length) { out += value_list[vi++]; }
+    }
+
+    return out;
+  }
+
+  function for_each(obj, cb)
+  {
+    if (!obj) { return obj; }
+    if (obj.constructor === Array)
+    {
+      return obj.for_each(cb);
+    }
+    else
+    {
+      for (var k in obj)
+      {
+        if (!obj.hasOwnProperty(k)) { continue; }
+        cb(obj[k], k, this);
+      }
+
+      return obj;
+    }
+  }
+
+  Array.prototype.for_each = function(cb)
+  {
+    for (var i = 0; i < this.length; ++i)
+    {
+      cb(this[i], i, this);
+    }
+
+    return this;
+  };
+
+  Array.prototype.accumulate = function(dst_key, src_key, scale)
+  {
+    scale = scale || 1;
+
+    for (var i = this.length; i--;)
+    {
+      this[i][dst_key] = this[i][dst_key].add(this[i][src_key].mul(scale));
+    }
+  };
+
+  Array.prototype.pick = function()
+  {
+    return this[Math.floor(Math.random() * this.length)];
+  };
+
+
+  Array.prototype.timed_queue = function() {
+    this.last_idx = function() { return this.length - 1 < 0 ? 0 : this.length - 1; },
+    this.peek = function()
+    {
+      if (this.empty()) { return null; }
+      return this[this.last_idx()].value;
+    };
+
+    this.empty = function() { return this.length == 0; };
+
+    this.push = function(val, time)
+    {
+      const v = val.value || val;
+      const t = val.time || time;
+      this.unshift({ value: v, time: t });
+    };
+
+    this.update = function(dt)
+    {
+            if (this.empty()) { return this; }
+
+      this[this.last_idx()].time -= dt;
+            const time = this[this.last_idx()].time;
+
+      if (time <= 0) { this.pop(); }
+    }
+
+    return this;
+  };
+
+  Math.ray = function(ray)
+  {
+    return {
+      intersects: {
+        sphere: function(position, radius)
+        {
+          const l = position.sub(ray.position);
+          const s = ray.direction.dot(l);
+          const l_2 = l.dot(l);
+          const r_2 = radius * radius;
+          var t = 0;
+
+          if (s < 0 && l_2 > r_2) { return false; }
+
+          const m_2 = l_2 - s * s;
+
+          if (m_2 > r_2) { return false; }
+
+          const q = Math.sqrt(r_2 - m_2);
+
+          if (r_2 - m_2)
+          {
+            t = s - q;
+          }
+          else
+          {
+            t = s + q;
+          }
+
+          return t;
+        }
+      }
+    };
+  };
+
+  Math.random.uni = function()
+  {
+    return 2 * Math.random() - 1;
+  }
+
+  Math.random.unit_vector = function(i)
+  {
+    i = i || Math.floor(Math.random() * 1000);
+
+    // compute random rotation axis look up table
+    if (!this._uv_lut)
+    {
+      this._uv_lut = [];
+      for(var _ = 1000; _--;)
+      {
+          this._uv_lut.push([].random_unit());
+      }
+    }
+
+    return this._uv_lut[i];
+  }
+
+  Math.model_matrix = function(obj)
+  {
+    var M = [].I(4);
+
+    if ('scale' in obj)
+    {
+      M = M.mat_mul([].scale(obj.scale))
+    }
+    if ('q' in obj)
+    {
+      M = M.mat_mul(obj.q.quat_inverse().quat_to_matrix());
+    }
+    if ('position' in obj)
+    {
+      M = M.mat_mul([].translate(obj.position));
+    }
+
+    return M;
+  };
+
+  try
+  {
+    module.exports = g;
+    module.exports.for_each = for_each;
+  }
+  catch(e)
+  {
+    g.for_each = for_each;
+    console.log('Not a node.js module');
+  }
+
 </script>
-<script type="text/javascript">g.web={_draw:function(){},_on_message:null,_canvas:null,gfx:{_initalize:function(){with(g.web){if(null==_canvas)return console.error("Canvas element has not been set, WebGL cannot initialize"),!1;const gl=_canvas.getContext("webgl");return null==gl?(alert("Unable to initialize WebGL. Your browser or machine may not support it."),!1):(gl.clearColor(.1,.1,.1,1),gl.clearDepth(1),gl.depthFunc(gl.LEQUAL),gl.enable(gl.DEPTH_TEST),gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT),window.gl=gl,document.body.onresize&&document.body.onresize(),!0)}},camera:function(){this._q=[0,0,0,1],this._view=[].I(4),this._proj=[].I(4),this._pos=[0,0,0],this._forward=[0,0,1],this._up=[0,1,0],this.look_at=function(e,t,n){return e&&t&&n&&(this._pos=e,this._forward=t.sub(e).norm(),this._up=n.norm(),this._view=[].view(this._pos,this._forward,this._up)),this._view},this.view=function(e,t,n){return e&&t&&n&&(this._pos=e,this._forward=t.norm(),this._up=n.norm(),this._view=[].view(this._pos,this._forward,this._up)),this._view},this.tilt=function(e,t,n){const i=[].quat_rotation([1,0,0],t),r=[].quat_rotation([0,1,0],e),o=[].quat_rotation([0,0,1],n),s=i.quat_mul(r).quat_mul(o);this.q=this.q.quat_mul(s),this._up=q.quat_rotate_vector([0,1,0]),this._forward=q.quat_rotate_vector([0,0,1])},this.position=function(e){return this._pos=e,this.view(this._pos,this._sub,this._up),this},this.up=function(e){return this._up=e,this.view(this._up,this._sub,this._up),this},this.projection=function(){return this._proj},this.perspective=function(e,t,n){return e=e||Math.PI/2,t=t||.1,n=n||1e3,this._proj=[].perspective(e,g.web.gfx.aspect(),t,n),this},this.orthographic=function(e,t){const n=g.web.gfx.aspect();return e=e||.1,t=t||100,this._proj=[].orthographic(-n,n,-1,1,e,t),this}},width:function(){return g.web._canvas.width},height:function(){return g.web._canvas.height},aspect:function(){return g.web._canvas.width/g.web._canvas.height},texture:{_filtering:null,_wraping:null,repeating:function(){return this._wraping=gl.REPEAT,this},clamped:function(){return this._wraping=gl.CLAMP_TO_EDGE,this},pixelated:function(){return this._filtering=gl.NEAREST,this},smooth:function(){return this._filtering=gl.LINEAR,this},create:function(e){const t=gl.createTexture(),n=g.web.gfx.texture._wraping||gl.REPEAT,i=g.web.gfx.texture._filtering||gl.LINEAR;return gl.bindTexture(gl.TEXTURE_2D,t),gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,e),null==n&&console.error("Texture wrap not specified. Please call repeating() or clamped()"),null==i&&console.error("Texture filter not specified. Please call pixelated() or smooth()"),gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,i),gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,i),gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,n),gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,n),t}},shader:{create:function(e,t,n){function i(e,t){const n=gl.createShader(e);return gl.shaderSource(n,t),gl.compileShader(n),gl.getShaderParameter(n,gl.COMPILE_STATUS)?n:(console.error("Error building "+e),console.error(t),console.error("An error occurred compiling the shader: "+gl.getShaderInfoLog(n)),console.error("-------------------------"),gl.deleteShader(n),null)}const r=i(gl.VERTEX_SHADER,t),o=i(gl.FRAGMENT_SHADER,n),s=gl.createProgram();return gl.attachShader(s,r),gl.attachShader(s,o),gl.linkProgram(s),gl.getProgramParameter(s,gl.LINK_STATUS)?g.web.gfx.shader[e]=s:(console.error("Failed to link shader program: "+gl.getProgramInfoLog(s)),null)}},mesh:{create:function(e){var t={indices:null,vertices:{},shader_configs:{},buffer:function(e){const t=this;return{set_data:function(n){gl.bindBuffer(gl.ARRAY_BUFFER,t.vertices[e]),gl.bufferData(gl.ARRAY_BUFFER,n.as_Float32Array(),gl.DYNAMIC_DRAW)}}},using_shader:function(e){const t=this,n=g.web.gfx.shader[e];var i=0;return gl.useProgram(n),{with_attribute:function(i){const r=t.vertices[i.buffer];if(void 0===r)return void console.error("Cannot use undefined buffer");gl.bindBuffer(gl.ARRAY_BUFFER,r);const o=gl.getAttribLocation(n,i.name);return o<0?(console.error('Cannot find location for attribute "'+name+'" in shader "'+e+'"'),null):(gl.vertexAttribPointer(o,i.components||1,i.type||gl.FLOAT,i.normalized||!1,i.stride||0,i.offset||0),gl.enableVertexAttribArray(o),this)},with_camera:function(e){return this.set_uniform("u_proj").mat4(e.projection()).set_uniform("u_view").mat4(e.view())},set_uniform:function(e){const t=this,r=gl.getUniformLocation(n,e);return r<0&&console.error('Could not find uniform "'+e+'"'),{mat4:function(e){const n=e.as_Float32Array();return gl.uniformMatrix4fv(r,!1,n),t},vec3:function(e){return gl.uniform3fv(r,e.as_Float32Array(),1),t},vec4:function(e){return gl.uniform4fv(r,e.as_Float32Array(),1),t},float:function(e){return gl.uniform1f(r,e),t},texture:function(e){return gl.activeTexture(gl.TEXTURE0+i),gl.bindTexture(gl.TEXTURE_2D,e),gl.uniform1i(r,i),++i,t}}},draw_tris:function(){t.indices?(gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.indices),gl.drawElements(gl.TRIANGLES,t.element_count,gl.UNSIGNED_SHORT,0)):gl.drawArrays(gl.TRIANGLES,0,t.positions.length/9)},draw_tri_strip:function(){t.indices?(gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.indices),gl.drawElements(gl.TRIANGLE_STRIP,t.element_count,gl.UNSIGNED_SHORT,0)):gl.drawArrays(gl.TRIANGLE_STRIP,0,t.element_count/3)},draw_lines:function(){t.indices?(gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.indices),gl.drawElements(gl.LINES,t.element_count,gl.UNSIGNED_SHORT,0)):gl.drawArrays(gl.LINES,0,t.element_count/3)},draw_points:function(){t.indices?(gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.indices),gl.drawElements(gl.POINTS,t.element_count,gl.UNSIGNED_SHORT,0)):gl.drawArrays(gl.POINTS,0,t.element_count/3)}}}};return e?(e.positions&&(t.vertices.positions=gl.createBuffer(),gl.bindBuffer(gl.ARRAY_BUFFER,t.vertices.positions),gl.bufferData(gl.ARRAY_BUFFER,e.positions.as_Float32Array(),gl.STATIC_DRAW)),e.texture_coords&&(t.vertices.texture_coords=gl.createBuffer(),gl.bindBuffer(gl.ARRAY_BUFFER,t.vertices.texture_coords),gl.bufferData(gl.ARRAY_BUFFER,e.texture_coords.as_Float32Array(),gl.STATIC_DRAW)),e.colors&&(t.vertices.colors=gl.createBuffer(),gl.bindBuffer(gl.ARRAY_BUFFER,t.vertices.colors),gl.bufferData(gl.ARRAY_BUFFER,e.colors.as_Float32Array(),gl.STATIC_DRAW)),e.normals&&(t.vertices.normals=gl.createBuffer(),gl.bindBuffer(gl.ARRAY_BUFFER,t.vertices.normals),gl.bufferData(gl.ARRAY_BUFFER,e.normals.as_Float32Array(),gl.STATIC_DRAW)),e.indices?(t.indices=gl.createBuffer(),gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.indices),gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,e.indices.as_Int16Array(),gl.STATIC_DRAW),t.element_count=e.indices.length):t.element_count=e.positions.length,t):t}},sprite:{create:function(e){const t=e.meta.size.w,n=e.meta.size.h;var i=[],r={};return for_each(e.meta.frameTags,e=>{switch(r[e.name]=[],e.direction){case"forward":for(var t=e.from;t<=e.to;++t)r[e.name].push(t);break;case"pingpong":for(t=e.from;t<=e.to;++t)r[e.name].push(t);for(t=e.to;t>=e.from;--t)r[e.name].push(t)}tag=r[e.name]}),for_each(e.frames,e=>{const r=e.frame;i.push({x:r.x/t,y:r.y/n,w:r.w/t,h:r.h/n,sec:e.duration/1e3})}),function(){this.frame_idx=0,this.frame_duration=i[0].sec,this.tag=tag,this.tags=r,this.queue=[],this.current_frame=function(){return i[this.tag[this.frame_idx]]},this.tick=function(e){for(;e>0;){const t=this.frame_duration;this.frame_duration-=e,this.frame_duration<=0&&(this.frame_idx++,this.frame_idx>=this.tag.length&&(this.queue.length>0&&(this.tag=this.queue.pop()),this.frame_idx=0),this.frame_duration=this.current_frame().sec),e-=t}},this.set=function(e){this.frame_idx=0,this.tag=this.tags[e]},this.origin=function(){return[this.current_frame().x,this.current_frame().y]},this.size=function(){return[this.current_frame().w,this.current_frame().h]}}}}},assets:{load:function(e,t){e.length;(function t(n){return n>=e.length?this:(i=e[n],"string"==typeof i?fetch(i).then(function(e){console.log("Loading: "+i);const t=e.headers.get("content-type"),n=t.split("/")[0];var r=parseInt(e.headers.get("content-length"));switch(n){case"image":var o=new Image;o.src=e.url,g.web.assets[i]=o,console.log("Finished: "+i),o.onload=function(){const e=i.split("."),t=e[0].replace("imgs","tex");var n=g.web.gfx.texture.smooth().repeating();e.indexOf("pixelated")>0&&(n=n.pixelated()),e.indexOf("smooth")>0&&(n=n.smooth()),e.indexOf("repeating")>0&&(n=n.repeating()),e.indexOf("clamped")>0&&(n=n.clamped()),g.web.assets[t]=n.create(o)};break;case"audio":g.web.assets[i]=new Audio(e.url),console.log("Finished: "+i)}switch(t){case"application/json":case"application/json; charset=UTF-8":return g.web.assets[i]="",e.json().then(function(e){if(g.web.assets[i]=e,i.indexOf("meshes")>-1){const e=i.replace("meshes","mesh").replace(".json","");g.web.assets[e]=g.web.gfx.mesh.create(g.web.assets[i])}console.log("Finished OK: "+i)});case"text/plain":case"application/octet-stream":return g.web.assets[i]="",e.body.getReader().read().then(function(e){console.log("Loading: "+i+" bytes remaining: "+r),g.web.assets[i]+=(new TextDecoder).decode(e.value)})}}):i instanceof HTMLImageElement?new Promise(e=>{const t=i,n=(t.getAttribute("texture-params")||"").split("."),r=t.getAttribute("id").replace("imgs","tex");var o=g.web.gfx.texture.smooth().repeating();return n.indexOf("pixelated")>0&&(o=o.pixelated()),n.indexOf("smooth")>0&&(o=o.smooth()),n.indexOf("repeating")>0&&(o=o.repeating()),n.indexOf("clamped")>0&&(o=o.clamped()),g.web.assets[r]=o.create(t),e({path:i,status:"ok"})}):void 0).then(function(){return t(n+1)});var i})(0).then(function(){t()})}},pointer:{_last:[0,0],on_move:function(e){return g.web._canvas.addEventListener("touchmove",function(t){const n=t.touches[0];t.preventDefault(),g.web.pointer._last&&(n.movementX=n.clientX-g.web.pointer._last[0],n.movementY=n.clientY-g.web.pointer._last[1]),e(n),g.web.pointer._last=[n.clientX,n.clientY]},!1),g.web._canvas.addEventListener("mousemove",function(t){t.preventDefault(),g.web.pointer._last=[t.clientX,t.clientY],e(t)},!1),this},on_scroll:function(e){g.web._canvas.addEventListener("scroll",function(t){e(t)})},on_pointer_lock_change:function(e){"onpointerlockchange"in document?document.addEventListener("pointerlockchange",function(t){e(t)},!1):"onmozpointerlockchange"in document&&document.addEventListener("mozpointerlockchange",function(t){e(t)},!1)},cast_ray:function(e){const t=[g.web.gfx.width(),g.web.gfx.height()].mul(.5),n=g.web.pointer._last.sub(t).div(t),i=[n[0],n[1],1,1];e.mat_mul(i)},on_press:function(e){g.web._canvas.ontouchstart=function(t){const n=t.touches[0];g.web.pointer._last=[n.clientX,n.clientY],e(t)},g.web._canvas.onmousedown=function(t){const n=t;g.web.pointer._last=[n.clientX,n.clientY],e(t)}},on_release:function(e){g.web._canvas.ontouchend=g.web._canvas.ontouchcancel=g.web._canvas.onmouseup=function(){e()}}},key:{_initalized:!1,_map:{},is_pressed:function(e){return g.web.key._initalized||(document.onkeydown=function(e){g.web.key._map[e.key.toLowerCase()]=!0},document.onkeyup=function(e){g.web.key._map[e.key.toLowerCase()]=!1},g.web.key._initalized=!0),g.web.key._map[e]||!1}},on_message:function(e){return g.web._on_message=e,this},canvas:function(e,t){return t=t||{},g.web._canvas=e,t.fill?document.body.onresize=function(e){g.web._canvas.width=document.body.clientWidth,g.web._canvas.height=document.body.clientHeight,gl.viewport(0,0,document.body.clientWidth,document.body.clientHeight)}:t.fixed_size||(document.body.onresize=function(e){g.web._canvas.width=g.web._canvas.clientWidth,g.web._canvas.height=g.web._canvas.clientHeight,gl.viewport(0,0,g.web._canvas.clientWidth,g.web._canvas.clientHeight)}),g.web._canvas.requestPointerLock=g.web._canvas.requestPointerLock||g.web._canvas.mozRequestPointerLock||function(){},document.exitPointerLock=document.exitPointerLock||document.mozExitPointerLock||function(){},g.web._canvas.requestPointerLock(),this},draw:function(e){return g.web._draw=e,this}};</script>
+<script type="text/javascript">
+  g.web = {
+    _draw: function() {},
+    _on_message: function() {},
+    _on_event: {},
+    _canvas: null,
+    _audio_ctx: null,
+
+    gfx: {
+      _initalize: function()
+      {
+        with (g.web)
+        {
+          if (_canvas == null)
+          {
+            console.error('Canvas element has not been set, WebGL cannot initialize');
+            return false;
+          }
+
+          const gl = _canvas.getContext('webgl');
+          const depth_ext = gl.getExtension('WEBGL_depth_texture');
+          if (!depth_ext) {
+            return alert('need WEBGL_depth_texture');
+          }
+
+          if (gl == null)
+          {
+            alert('Unable to initialize WebGL. Your browser or machine may not support it.');
+            return false;
+          }
+
+          gl.clearColor(0.1, 0.1, 0.1, 1.0);
+          gl.clearDepth(1.0);                 // Clear everything
+          gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+          gl.enable(gl.DEPTH_TEST);           // Enable depth testing
+          gl.getExtension('OES_element_index_uint');
+          gl.enable(gl.BLEND);
+          gl.enable(gl.CULL_FACE);
+          gl.cullFace(gl.FRONT);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+          window.gl = gl;
+
+          const vertex_shader = `
+          attribute vec3 a_position;
+          attribute vec2 a_tex_coord;
+          varying lowp vec2 v_tex_coord;
+          varying lowp vec3 v_pos;
+          void main (void) {
+            gl_Position = vec4(v_pos = a_position, 1.0);
+            v_tex_coord = a_tex_coord;
+          }`;
+
+          const frag_shader = `
+          varying lowp vec2 v_tex_coord;
+          varying lowp vec3 v_pos;
+          uniform lowp float u_progress;
+          void main (void) {
+            if (0.1 > v_pos.y && v_pos.y > -0.1 && v_pos.x < ((u_progress * 2.0) - 1.0))
+            {
+              gl_FragColor = vec4(1.0);
+            }
+            else
+            {
+              gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            }
+          }`;
+
+          g.web.gfx.shader.create('loading',
+            vertex_shader,
+            frag_shader
+          );
+
+              g.web.assets['mesh/plane'] = g.web.gfx.mesh.plane();
+
+          if (document.body.onresize) { document.body.onresize(); }
+
+          return true;
+        }
+      },
+      helpers: {
+        pixel_to_canonical: function(pixel_coord) {
+          const tr = [].translate([
+            (2 * pixel_coord[0] / g.web.gfx.width()) - 1,
+            -(2 * pixel_coord[1] / g.web.gfx.height()) + 1,
+            1,
+          ]);//.mul(-1);
+          return tr;
+        }
+      },
+      width: function() { return g.web._canvas.width; },
+      height: function() { return g.web._canvas.height; },
+      aspect: function() { return g.web._canvas.width / g.web._canvas.height; },
+      texture: {
+        create: function(img)
+        {
+          const tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+
+          function is_power_of_2(n) { return (n != 0) && ((n & (n - 1))) == 0; }
+
+          tex.width = img.width;
+          tex.height = img.height;
+
+          tex.depth = function() {
+            gl.texImage2D(
+              gl.TEXTURE_2D,
+              0,
+              gl.DEPTH_COMPONENT,
+              img.width,
+              img.height,
+              0,
+              gl.DEPTH_COMPONENT,
+              gl.UNSIGNED_SHORT,
+              null
+            );
+
+            return tex;
+          };
+
+          tex.color = function() {
+            if (img instanceof HTMLImageElement || img instanceof HTMLCanvasElement)
+            {
+              gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                img
+              );
+            }
+            else
+            {
+              gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA,
+                img.width,
+                img.height,
+                0,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                null
+              );
+            }
+
+            return tex;
+          };
+
+          tex.pixelated = function() {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            return tex;
+          };
+
+          tex.smooth = function() {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            return tex;
+          };
+
+          tex.clamped = function() {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            return tex;
+          };
+
+          tex.repeating = function() {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            return tex;
+          };
+
+          if (!is_power_of_2(tex.width)) { return tex.clamped(); }
+
+          return tex;
+        }
+      },
+      text: {
+        create: function(width, height, font)
+        {
+          var canvas = document.createElement('canvas');
+          document.body.appendChild(canvas);
+          canvas.width = width || canvas.width;
+          canvas.height = height || canvas.height;
+          canvas.hidden = true;
+          var ctx = canvas.getContext('2d');
+
+          var texture = g.web.gfx.texture.create(canvas).color().clamped().smooth();
+          ctx.font = font || '50px Arial';
+          ctx.textBaseline = 'top';
+          ctx.imageSmoothingEnabled = false;
+
+          texture.canvas = canvas;
+          texture.text = function(str, color)
+          {
+            ctx.setTransform(-1, 0, 0, -1, canvas.width, canvas.height)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = color || "#000000ff";
+            ctx.fillText(str, 0, 0);
+
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(
+              gl.TEXTURE_2D,
+              0,
+              gl.RGBA,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              canvas
+            );
+
+            return texture;
+          };
+
+          return texture;
+        }
+      },
+      render_target: {
+        create: function(img) {
+          const fbo = gl.createFramebuffer();
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+          fbo.color = function(tex)
+          {
+            fbo.color_attachment = tex;
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+            return fbo;
+          }
+
+          fbo.depth = function(tex)
+          {
+            fbo.depth_attachment = tex;
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, tex, 0);
+            return fbo;
+          }
+
+          fbo.shadow_map = function()
+          {
+            var depth_tex = g.web.gfx.texture.create(img).depth().clamped().smooth();
+            return fbo.depth(depth_tex);
+          }
+
+          fbo.bind_as_target = ()=> {
+            gl.viewport(0, 0, img.width, img.height);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+          };
+
+          fbo.unbind_as_target = ()=> {
+            if (fbo.color_attachment)
+            {
+              gl.generateMipmap(gl.TEXTURE_2D);
+            }
+
+            gl.viewport(0, 0, g.web.gfx.width(), g.web.gfx.height());
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          };
+
+          return fbo;
+        }
+      },
+      shader: {
+        create: function(name, vertex_src, fragment_src)
+        {
+          function load_shader(type, source)
+          {
+            const shader = gl.createShader(type);
+
+            // Send the source to the shader object
+            gl.shaderSource(shader, source);
+
+            // Compile the shader program
+            gl.compileShader(shader);
+
+            // See if it compiled successfully
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+            {
+              console.error('Error building ' + type);
+              console.error(source);
+              console.error('An error occurred compiling the shader: ' + gl.getShaderInfoLog(shader));
+              console.error('-------------------------');
+
+              gl.deleteShader(shader);
+              return null;
+            }
+
+            return shader;
+          }
+
+          const vertex_shader = load_shader(gl.VERTEX_SHADER, vertex_src);
+          const fragment_shader = load_shader(gl.FRAGMENT_SHADER, fragment_src);
+
+          const program = gl.createProgram();
+          gl.attachShader(program, vertex_shader);
+          gl.attachShader(program, fragment_shader);
+          gl.linkProgram(program);
+
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+          {
+            console.error('Failed to link shader program: ' + gl.getProgramInfoLog(program));
+            return null;
+          }
+
+          return g.web.gfx.shader[name] = program;
+        }
+      },
+      mesh: {
+        create: function(mesh_json)
+        {
+          var mesh = {
+            indices: null,
+            vertices: {},
+            shader_configs: {},
+            element_count: 0,
+
+            buffer: function(buffer_name)
+            {
+              const mesh_ref = this;
+
+              return {
+                set_data: function(v)
+                {
+                  let verts = v.as_Float32Array();
+                  gl.bindBuffer(gl.ARRAY_BUFFER, mesh_ref.vertices[buffer_name]);
+                  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+                  mesh_ref.element_count = verts.length;
+                },
+              };
+            },
+
+            using_shader: function(shader_name)
+            {
+              const mesh_ref = this;
+              const shader = g.web.gfx.shader[shader_name];
+              var tex_unit = 0;
+              gl.useProgram(shader);
+
+              return {
+                with_attribute: function(description)
+                {
+                  // TODO: add functionality to cache vertex attr pointers
+                  const buf = mesh_ref.vertices[description.buffer];
+
+                  if (buf === undefined) { console.error('Cannot use undefined buffer'); return; }
+                  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+                  const loc = gl.getAttribLocation(shader, description.name);
+                  if (loc < 0)
+                  {
+                    // console.error('Cannot find location for attribute "' + name + '" in shader "' + shader_name + '"');
+                    return this;
+                  }
+
+                  gl.vertexAttribPointer(
+                    loc,
+                    description.components || 1,
+                    description.type || gl.FLOAT,
+                    description.normalized || false,
+                    description.stride || 0,
+                    description.offset || 0
+                  );
+                  gl.enableVertexAttribArray(loc);
+
+                  return this;
+                },
+                with_camera: function(camera)
+                {
+                  return this.set_uniform('u_proj').mat4(camera.projection())
+                         .set_uniform('u_view').mat4(camera.view());
+                },
+                with_aspect_correct_2d: function(tex, transform)
+                {
+                  transform = transform || [].I(4);
+                  const scale = [].mat_scale([
+                    2 * tex.width / g.web.gfx.width(),
+                    2 * tex.height / g.web.gfx.height(),
+                    1
+                  ]);
+
+                  transform = scale.mat_mul(transform);
+
+                  return this.set_uniform('u_texture').texture(tex)
+                             .set_uniform('u_proj').mat4([].I(4))
+                             .set_uniform('u_view').mat4([].I(4))
+                             .set_uniform('u_model').mat4(transform)
+                },
+                set_uniform: function(uni_name)
+                {
+                  const shader_ref = this;
+                  const loc = gl.getUniformLocation(shader, uni_name);
+
+                  // if (loc < 0) { console.error('Could not find uniform "' + uni_name + '"'); }
+
+                  return {
+                    mat4: function(m)
+                    {
+                      const v = m.as_Float32Array();
+                      gl.uniformMatrix4fv(loc, false, v);
+                      return shader_ref;
+                    },
+                    vec3: function(v)
+                    {
+                      gl.uniform3fv(loc, v.as_Float32Array());
+                      return shader_ref;
+                    },
+                    vec4: function(v)
+                    {
+                      gl.uniform4fv(loc, v.as_Float32Array(), 1);
+                      return shader_ref;
+                    },
+                    float: function(s)
+                    {
+                      gl.uniform1f(loc, s);
+                      return shader_ref;
+                    },
+                    texture: function(tex)
+                    {
+                      gl.activeTexture(gl.TEXTURE0 + tex_unit);
+                      gl.bindTexture(gl.TEXTURE_2D, tex);
+                      gl.uniform1i(loc, tex_unit);
+                      ++tex_unit;
+                      return shader_ref;
+                    },
+                  };
+                },
+                draw_tris: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.TRIANGLES,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.TRIANGLES, 0, mesh_ref.positions.length / 9);
+                  }
+
+                  return this;
+                },
+                draw_tri_strip: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.TRIANGLE_STRIP,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, mesh_ref.element_count / 3);
+                  }
+
+                  return this;
+                },
+                draw_tri_fan: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.TRIANGLE_FAN,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.TRIANGLE_FAN, 0, mesh_ref.element_count);
+                  }
+
+                  return this;
+                },
+                draw_lines: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.LINES,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.LINES, 0, mesh_ref.element_count);
+                  }
+
+                  return this;
+                },
+                draw_line_strip: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.LINES,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.LINE_STRIP, 0, mesh_ref.element_count / 3);
+                  }
+
+                  return this;
+                },
+                draw_points: function()
+                {
+                  if (mesh_ref.indices)
+                  {
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh_ref.indices);
+                    gl.drawElements(
+                      gl.POINTS,
+                      mesh_ref.element_count,
+                      mesh_ref.index_type,
+                      0
+                    );
+                  }
+                  else
+                  {
+                    gl.drawArrays(gl.POINTS, 0, mesh_ref.element_count);
+                  }
+
+                  return this;
+                }
+              };
+            },
+          };
+
+          if (!mesh_json) { return mesh; }
+
+          if (mesh_json.positions)
+          {
+            mesh.vertices.positions = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertices.positions);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh_json.positions.as_Float32Array(), gl.STATIC_DRAW);
+          }
+
+          if (mesh_json.texture_coords)
+          {
+            mesh.vertices.texture_coords = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertices.texture_coords);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh_json.texture_coords.as_Float32Array(), gl.STATIC_DRAW);
+          }
+
+          if (mesh_json.colors)
+          {
+            mesh.vertices.colors = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertices.colors);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh_json.colors.as_Float32Array(), gl.STATIC_DRAW);
+          }
+
+          if (mesh_json.normals)
+          {
+            mesh.vertices.normals = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertices.normals);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh_json.normals.as_Float32Array(), gl.STATIC_DRAW);
+          }
+
+          if (mesh_json.indices)
+          {
+            mesh.indices = gl.createBuffer();
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indices);
+            if (mesh_json.indices.length > 0xffff)
+            {
+              gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh_json.indices.as_Int32Array(), gl.STATIC_DRAW);
+              mesh.index_type = gl.UNSIGNED_INT;
+            }
+            else
+            {
+              gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh_json.indices.as_Int16Array(), gl.STATIC_DRAW);
+              mesh.index_type = gl.UNSIGNED_SHORT;
+            }
+
+            mesh.element_count = mesh_json.indices.length;
+          }
+          else
+          {
+            mesh.element_count = mesh_json.positions.length;
+          }
+
+          return mesh;
+        },
+        plane: function()
+        {
+          return g.web.gfx.mesh.create({
+            positions: [[-1, 1, 0], [1, 1, 0], [1, -1, 0], [-1, -1, 0]],
+            normals: [[0, 0, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1]],
+            texture_coords: [[1, 1], [0, 1], [0, 0], [1, 0]],
+          });
+        }
+      },
+      voxel: {
+        create: function(voxel)
+        {
+          voxel.generate = function()
+          {
+
+            const vol = voxel.width * voxel.depth * voxel.height;
+            this.mesh = {
+              positions: [],
+              normals: [],
+              colors: [],
+              texture_coords: [],
+              indices: [],
+              center_of_mass: [0, 0, 0],
+            };
+            var mesh = this.mesh;
+
+            /*
+                x -->
+
+              z   3---2
+              |   | / |
+              v   |/  |
+                0---1
+
+              indices [ 0, 3, 2, 0, 2, 1 ]
+            */
+            var ii = 0;
+            var cell_count = 0;
+            for (var wi = 0; wi < voxel.width; ++wi)
+            for (var hi = 0; hi < voxel.height; ++hi)
+            for (var di = 0; di < voxel.depth; ++di)
+            {
+              function has_neighbor_w(delta)
+              {
+                delta = wi + delta;
+                if (delta < 0 || delta >= voxel.width) { return false; }
+                return voxel.cells[delta][hi][di] > 0;
+              }
+
+              function has_neighbor_h(delta)
+              {
+                delta = hi + delta;
+                if (delta < 0 || delta >= voxel.height) { return false; }
+                return voxel.cells[wi][delta][di] > 0;
+              }
+
+              function has_neighbor_d(delta)
+              {
+                delta = di + delta;
+                if (delta < 0 || delta >= voxel.depth) { return false; }
+                return voxel.cells[wi][hi][delta] > 0;
+              }
+
+              const cell = voxel.cells[wi][hi][di];
+              if (cell > 0)
+              {
+                const cell_top = has_neighbor_h(1), cell_bottom = has_neighbor_h(-1);
+                const cell_left = has_neighbor_w(-1), cell_right = has_neighbor_w(1);
+                const cell_front = has_neighbor_d(1), cell_back = has_neighbor_d(-1);
+
+                const s = voxel.scale;
+                const x = wi * s, y = hi * s, z = di * s;
+                if (!cell_bottom) mesh.positions.push(x + 0, y + 0, z + 0, x + s, y + 0, z + 0, x + s, y + 0, z + s, x + 0, y + 0, z + s); // bottom 00-03
+                if (!cell_left)   mesh.positions.push(x + 0, y + 0, z + 0, x + 0, y + s, z + 0, x + 0, y + s, z + s, x + 0, y + 0, z + s); // left   04-07
+                if (!cell_front)  mesh.positions.push(x + 0, y + 0, z + s, x + 0, y + s, z + s, x + s, y + s, z + s, x + s, y + 0, z + s); // front  08-12
+                if (!cell_right)  mesh.positions.push(x + s, y + 0, z + 0, x + s, y + s, z + 0, x + s, y + s, z + s, x + s, y + 0, z + s); // right  13-17
+                if (!cell_back)   mesh.positions.push(x + 0, y + 0, z + 0, x + 0, y + s, z + 0, x + s, y + s, z + 0, x + s, y + 0, z + 0); // back   18-22
+                if (!cell_top)    mesh.positions.push(x + 0, y + s, z + 0, x + s, y + s, z + 0, x + s, y + s, z + s, x + 0, y + s, z + s); // top    23-27
+
+                if (!cell_bottom) mesh.texture_coords.push( 0.00, 1.00,  1/6, 1.00,  1/6, 0.00, 0.00, 0.00 ); // bottom
+                if (!cell_left)   mesh.texture_coords.push(  4/6, 0.00,  4/6, 1.00,  3/6, 1.00,  3/6, 0.00 ); // left
+                if (!cell_front)  mesh.texture_coords.push(  5/6, 0.00,  5/6, 1.00,  4/6, 1.00,  4/6, 0.00 ); // front
+                if (!cell_right)  mesh.texture_coords.push(  1/6, 0.00,  1/6, 1.00,  2/6, 1.00,  2/6, 0.00 ); // right
+                if (!cell_back)   mesh.texture_coords.push(  2/6, 0.00,  2/6, 1.00,  3/6, 1.00,  3/6, 0.00 ); // back
+                if (!cell_top)    mesh.texture_coords.push(  5/6, 0.00, 1.00, 0.00, 1.00, 1.00,  5/6, 1.00 ); // top
+
+                if (voxel.palette)
+                {
+                  const color = voxel.palette[cell];
+                  const r = color[0], g = color[1], b = color[2]
+                  if (!cell_bottom) mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // bottom
+                  if (!cell_left)   mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // left
+                  if (!cell_front)  mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // front
+                  if (!cell_right)  mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // right
+                  if (!cell_back)   mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // back
+                  if (!cell_top)    mesh.colors.push(r, g, b, r, g, b, r, g, b, r, g, b); // top
+                }
+
+                if (!cell_bottom) mesh.normals.push( 0,-1, 0, 0,-1, 0, 0,-1, 0, 0,-1, 0 ); // bottom
+                if (!cell_left)   mesh.normals.push(-1, 0, 0,-1, 0, 0,-1, 0, 0,-1, 0, 0 ); // left
+                if (!cell_front)  mesh.normals.push( 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1 ); // front
+                if (!cell_right)  mesh.normals.push( 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0 ); // right
+                if (!cell_back)   mesh.normals.push( 0, 0,-1, 0, 0,-1, 0, 0,-1, 0, 0,-1 ); // back
+                if (!cell_top)    mesh.normals.push( 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0 ); // top
+
+                if (!cell_bottom) { mesh.indices.push(ii + 2, ii + 3, ii + 0, ii + 1, ii + 2, ii + 0); ii += 4; }
+                if (!cell_left)   { mesh.indices.push(ii + 0, ii + 3, ii + 2, ii + 0, ii + 2, ii + 1); ii += 4; }
+                if (!cell_front)  { mesh.indices.push(ii + 0, ii + 3, ii + 2, ii + 0, ii + 2, ii + 1); ii += 4; }
+                if (!cell_right)  { mesh.indices.push(ii + 2, ii + 3, ii + 0, ii + 1, ii + 2, ii + 0); ii += 4; }
+                if (!cell_back)   { mesh.indices.push(ii + 2, ii + 3, ii + 0, ii + 1, ii + 2, ii + 0); ii += 4; }
+                if (!cell_top)    { mesh.indices.push(ii + 0, ii + 3, ii + 2, ii + 0, ii + 2, ii + 1); ii += 4; }
+
+                mesh.center_of_mass[0] += x;
+                mesh.center_of_mass[1] += y;
+                mesh.center_of_mass[2] += z;
+                cell_count++;
+              }
+            }
+
+            mesh.center_of_mass = mesh.center_of_mass.mul(1 / cell_count);
+
+            for (var pi = 0; pi < mesh.positions.length; pi += 3)
+            {
+              mesh.positions[pi + 0] = mesh.positions[pi + 0] - mesh.center_of_mass[0];
+              mesh.positions[pi + 1] = mesh.positions[pi + 1] - mesh.center_of_mass[1];
+              mesh.positions[pi + 2] = mesh.positions[pi + 2] - mesh.center_of_mass[2];
+            }
+          };
+
+          voxel.generate();
+          var gl_mesh = g.web.gfx.mesh.create(voxel.mesh);
+
+          for (var key in gl_mesh)
+          {
+            voxel[key] = gl_mesh[key];
+          }
+
+          return voxel;
+        }
+      },
+      sprite: {
+        create: function(aesprite_json)
+        {
+          const img_w = aesprite_json.meta.size.w;
+          const img_h = aesprite_json.meta.size.h;
+          var frames = [];
+          var tags = {};
+          var layers = {};
+          var layer = '';
+
+          for_each(aesprite_json.meta.frameTags, (frame_tag) => {
+            tags[frame_tag.name] = [];
+            switch (frame_tag.direction)
+            {
+              case 'forward':
+                for (var i = frame_tag.from; i <= frame_tag.to; ++i)
+                {
+                  tags[frame_tag.name].push(i);
+                }
+                break;
+              case 'pingpong':
+                for (var i = frame_tag.from; i <= frame_tag.to; ++i)
+                {
+                  tags[frame_tag.name].push(i);
+                }
+                for (var i = frame_tag.to; i >= frame_tag.from; --i)
+                {
+                  tags[frame_tag.name].push(i);
+                }
+                break;
+            }
+
+            tag = tags[frame_tag.name];
+          });
+
+          for_each(aesprite_json.meta.layers, (layer) => {
+            layers[layer.name] = [];
+            layer = layer.name;
+
+            for (var frame_title in aesprite_json.frames)
+            {
+              const frame_meta = aesprite_json.frames[frame_title];
+              const frame = frame_meta.frame;
+
+              if (frame_title.indexOf(layer) <= -1) continue;
+
+              layers[layer].push({
+                x: frame.x / img_w,
+                y: frame.y / img_h,
+                w: frame.w / img_w,
+                h: frame.h / img_h,
+                sec: frame_meta.duration / 1000
+              });
+            }
+          });
+
+          for_each(aesprite_json.frames, (frame_meta) => {
+            const frame = frame_meta.frame;
+            frames.push({
+              x: frame.x / img_w,
+              y: frame.y / img_h,
+              w: frame.w / img_w,
+              h: frame.h / img_h,
+              sec: frame_meta.duration / 1000
+            });
+          });
+
+          return function() {
+            this.frame_idx = 0;
+            this.frame_duration = frames[0].sec;
+            this.paused = false;
+            this.speed = 1;
+            this.tag = tag;
+            this.tags = tags;
+            this.layers = layers;
+            this.layer = layer;
+            this.queue = [];
+
+            this.current_frame = function()
+            {
+              if (Object.keys(layers).length > 0)
+              {
+                return layers[this.layer][this.tag[this.frame_idx]];
+              }
+
+              return frames[this.tag[this.frame_idx]];
+            }
+
+            this.pause = function(pause) { this.paused = pause; }
+
+            this.tick = function(dt)
+            {
+              dt *= this.speed;
+
+              if(!this.paused)
+              while (dt > 0)
+              {
+                const prev_dur = this.frame_duration;
+                this.frame_duration -= dt;
+
+                if (this.frame_duration <= 0)
+                {
+                  this.frame_idx++;
+                  if (this.frame_idx >= this.tag.length)
+                  {
+                    if (this.queue.length > 0)
+                    {
+                      this.tag = this.queue.pop();
+                    }
+
+                    this.frame_idx = 0;
+                  }
+                  this.frame_duration = this.current_frame().sec;
+                }
+
+                dt -= prev_dur;
+              }
+            };
+
+            this.set = function(tag)
+            {
+              this.frame_idx = 0;
+              this.tag = this.tags[tag];
+            }
+
+            this.origin = function()
+            {
+              return [ this.current_frame().x,  this.current_frame().y ];
+            };
+
+            this.size = function()
+            {
+              return [ this.current_frame().w,  this.current_frame().h ];
+            };
+          };
+        }
+      }
+    },
+    snd: {
+      _initalize: function()
+      {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        g.web._audio_ctx = new AudioContext();
+      },
+      listener:
+      {
+        from_camera: function(cam)
+        {
+          const f = cam.forward(), u = cam.up();
+          const p = cam.position();
+          g.web._audio_ctx.listener.setOrientation(f[0], f[1], f[2], u[0], u[1], u[2]);
+          g.web._audio_ctx.listener.setPosition(p[0], p[1], p[2]);
+        }
+      }
+    },
+    assets: {
+      processors: {},
+      load: function(asset_arr, on_finish)
+      {
+        var req_frame = window.requestAnimationFrame       ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame    ||
+            window.oRequestAnimationFrame      ||
+            window.msRequestAnimationFrame;
+        var count = asset_arr.length;
+        var loaded = 0;
+
+        function load_resource(path)
+        {
+          return fetch(path).then(function(res)
+          {
+            console.log('Loading: ' + path);
+            const type = res.headers.get('content-type');
+            const type_stem = type.split('/')[0];
+            var bytes_to_read = parseInt(res.headers.get('content-length'));
+
+            const fields = path.split('.');
+            const processors = fields.slice(1);
+            const name = fields[0];
+
+            function process_asset(asset)
+            {
+              for (var i = 0; i < processors.length; i++)
+              {
+                const proc_name = processors[i];
+                if (proc_name in g.web.assets.processors)
+                try
+                {
+                  asset = g.web.assets.processors[proc_name](asset);
+                }
+                catch (error)
+                {
+                  console.error('Error: processing "{}" with "{}" failed - {}'.format([path, proc_name, error]));
+                }
+              }
+
+              return asset;
+            }
+
+            switch (type_stem)
+            {
+              case 'image':
+              {
+                var img = new Image();
+                img.src = res.url;
+                g.web.assets[path] = img;
+                console.log('Finished: ' + path);
+
+                // create webgl texture automatically
+                img.onload = function()
+                {
+                  img = process_asset(img);
+
+                  const tex_name = name.replace('imgs', 'tex');
+
+                  var tex = g.web.gfx.texture.create(img).color().smooth().repeating();
+
+                  if (processors.indexOf('pixelated') >= 0) { tex = tex.pixelated(); }
+                  if (processors.indexOf('smooth') >= 0) { tex = tex.smooth(); }
+                  if (processors.indexOf('repeating') >= 0) { tex = tex.repeating(); }
+                  if (processors.indexOf('clamped') >= 0) { tex = tex.clamped(); }
+                  g.web.assets[tex_name] = tex;
+                };
+              } break;
+
+              case 'audio':
+              {
+                const sound_name = name.replace('sounds', 'sound');
+
+                g.web.assets[sound_name] = function (pos)
+                {
+                  var ctx = g.web._audio_ctx;
+                  this.audio = new Audio(res.url);
+                  this.track = ctx.createMediaElementSource(this.audio);
+                  this.panner = ctx.createPanner();
+                  this.gain_node = ctx.createGain();
+                  this.gain_node.gain.value = 2;
+
+                  if (processors.indexOf('looping') >= 0) { this.audio.loop = true; }
+
+                  this.track.connect(this.gain_node).connect(this.panner).connect(ctx.destination);
+                  this.panner.setPosition(pos[0], pos[1], pos[2]);
+                  this.speed = function(speed)
+                  {
+                    if (this.audio.playbackRate == speed) { return; }
+                    this.audio.playbackRate = speed;
+                  }
+                  this.is_playing = function() { return !this.audio.paused && !this.audio.ended; }
+                  this.loop = function(loop) { this.audio.loop = loop; return this; }
+                  this.position = function(pos) { this.panner.setPosition(pos[0], pos[1], pos[2]); return this; }
+                  this.play = function()        { this.audio.play(); return this; }
+                  this.pause = function()       { this.audio.pause(); return this; }
+                  this.gain = function(g)       { this.gain_node.gain.value = g; return this; }
+                }
+                console.log('Finished: ' + path);
+              } break;
+            }
+
+            // specific mime types
+            switch (type)
+            {
+              case 'application/json':
+              case 'application/json; charset=UTF-8':
+              {
+                g.web.assets[path] = '';
+                return res.json().then(function (json) {
+
+                  g.web.assets[path] = process_asset(json);
+
+                  if (path.indexOf('meshes') > -1)
+                  {
+                    const mesh_name = path.replace('meshes', 'mesh').replace('.json', '');
+                    g.web.assets[mesh_name] = g.web.gfx.mesh.create(g.web.assets[path]);
+                  }
+                  else if (path.indexOf('voxels') > -1)
+                  {
+                    const mesh_name = path.replace('voxels', 'voxel').replace('.json', '');
+                    g.web.assets[mesh_name] = g.web.gfx.voxel.create(g.voxel.create(g.web.assets[path]));
+                  }
+                  else if (path.indexOf('animations') > -1)
+                  {
+                    const animation_name = path.replace('animations', 'animation').replace('.json', '');
+                    g.web.assets[animation_name] = g.web.gfx.sprite.create(g.web.assets[path]);
+                  }
+
+                  console.log('Finished OK: ' + path);
+                });
+              } break;
+
+              case 'text/plain':
+              case 'application/octet-stream':
+              {
+                g.web.assets[path] = '';
+                return res.body.getReader().read().then(function(res)
+                {
+                  console.log('Loading: ' + path + ' bytes remaining: ' + bytes_to_read);
+                  g.web.assets[path] += (new TextDecoder()).decode(res.value);
+                });
+              } break;
+            }
+          });
+        }
+
+        var promises = [];
+        // for (var i = 0; i < asset_arr.length; i++)
+        // {
+        //  promises.push(load_resource(asset_arr[i]));
+        // }
+        function load(idx)
+        {
+          if (idx >= asset_arr.length) { return this; }
+          return load_resource(asset_arr[idx]).then(function(){
+            //function draw()
+            //req_frame(draw);
+            // draw();
+            loaded += 1;
+            return load(idx + 1);
+          })
+        }
+
+        var started = false;
+        var ticker = setInterval(function(){
+          gl.clearColor(0, 0, 0, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          g.web.assets['mesh/plane'].using_shader('loading')
+                                    .with_attribute({name:'a_position', buffer: 'positions', components: 3})
+                                    .with_attribute({name:'a_tex_coord', buffer: 'texture_coords', components: 2})
+                                    .set_uniform('u_progress').float(loaded/count)
+                                    .draw_tri_fan();
+          if (!started)
+          {
+            started = true;
+            load(0).then(function(){
+              clearInterval(ticker);
+              on_finish();
+            });
+          }
+        }, 10);
+
+        // Promise.all(promises).then(function(values)
+        // {
+        //     on_finish();
+        // });
+        // setTimeout(function(){
+        // load(0).then(function(){ clearInterval(ticker); on_finish(); })
+        // });
+      },
+    },
+
+    pointer:
+    {
+      _last : [ 0, 0 ],
+
+      on_move: function(on_move_func)
+      {
+        g.web._canvas.addEventListener("touchmove", function(e)
+        {
+          const t = e.touches[0];
+          e.preventDefault();
+
+          if (g.web.pointer._last)
+          {
+            t.movementX = t.clientX - g.web.pointer._last[0];
+            t.movementY = t.clientY - g.web.pointer._last[1];
+          }
+
+          if (g.web._audio_ctx.state === 'suspended')
+          {
+            g.web._audio_ctx.resume();
+          }
+
+          on_move_func(t);
+          g.web.pointer._last = [ t.clientX, t.clientY ];
+        }, false);
+
+        g.web._canvas.addEventListener("mousemove", function(e)
+        {
+          e.preventDefault();
+          g.web.pointer._last = [ e.clientX, e.clientY ];
+
+          if (g.web._audio_ctx.state === 'suspended')
+          {
+            g.web._audio_ctx.resume();
+          }
+
+          on_move_func(e);
+        }, false);
+
+        return this;
+      },
+
+      on_scroll: function(on_scoll_func)
+      {
+        g.web._canvas.addEventListener("scroll", function(e)
+        {
+          on_scoll_func(e);
+        });
+      },
+
+      on_pointer_lock_change: function(on_pointer_lock_func)
+      {
+        if ("onpointerlockchange" in document)
+        {
+          document.addEventListener('pointerlockchange', function(e)
+          {
+            on_pointer_lock_func(e);
+          }, false);
+        }
+        else if ("onmozpointerlockchange" in document)
+        {
+          document.addEventListener('mozpointerlockchange', function(e)
+          {
+            on_pointer_lock_func(e);
+          }, false);
+        }
+      },
+
+      cast_ray: function(view)
+      {
+        const s = [ g.web.gfx.width(), g.web.gfx.height() ];
+        const h = s.mul(0.5);
+        const p = g.web.pointer._last.sub(h).div(h);
+        const d = [ p[0], p[1], 1, 1 ];
+
+        const dp = view.mat_mul(d);
+
+        // console.log(dp);
+      },
+
+      on_press: function(on_press_func)
+      {
+        g.web._canvas.ontouchstart = function(e)
+        {
+          const t = e.touches[0];
+          g.web.pointer._last = [ t.clientX, t.clientY ];
+          on_press_func(e);
+        };
+
+        g.web._canvas.onmousedown = function(e)
+        {
+          const t = e;
+          g.web.pointer._last = [ t.clientX, t.clientY ];
+          on_press_func(e);
+        };
+      },
+
+      on_release: function(on_release_func)
+      {
+        g.web._canvas.ontouchend = g.web._canvas.ontouchcancel = g.web._canvas.onmouseup = function()
+        {
+          on_release_func();
+        };
+      }
+    },
+
+    key:
+    {
+      _initalized: false,
+      _initalize: function()
+      {
+        if (g.web.key._initalized) { return; }
+
+        document.onkeydown = function(key)
+        {
+          g.web.key._map[key.key.toLowerCase()] = true;
+
+          for (var i = g.web.key._key_down_handlers.length; i--;)
+          {
+            g.web.key._key_down_handlers[i](key.key.toLowerCase());
+          }
+        };
+
+        document.onkeyup = function(key)
+        {
+          g.web.key._map[key.key.toLowerCase()] = false;
+
+          for (var i = g.web.key._key_up_handlers.length; i--;)
+          {
+            g.web.key._key_up_handlers[i](key.key.toLowerCase());
+          }
+        };
+
+        g.web.key._initalized = true;
+      },
+      _map: {},
+      _key_down_handlers: [],
+      _key_up_handlers: [],
+      is_pressed: function(key)
+      {
+        g.web.key._initalize();
+
+        return g.web.key._map[key] || false;
+      },
+      is_down: function(cb) { g.web.key._initalize(); g.web.key._key_down_handlers.push(cb); },
+      is_up: function(cb) { g.web.key._initalize(); g.web.key._key_up_handlers.push(cb); }
+    },
+
+    on_message: function(f) { g.web._on_message = f; return this; },
+
+    on: function(event)
+    {
+      return { 'do': function(cb) { g.web._on_event[event] = cb; }}
+    },
+
+    signal: function(name, msg)
+    {
+      g.web._socket.emit(name, msg);
+    },
+
+    canvas: function(dom_element, opts)
+    {
+      opts = opts || {};
+      g.web._canvas = dom_element;
+
+      if (opts.fill)
+      {
+        document.body.onresize = function(e) {
+          g.web._canvas.width = document.body.clientWidth;
+          g.web._canvas.height = document.body.clientHeight;
+          gl.viewport(0, 0, document.body.clientWidth, document.body.clientHeight);
+        };
+      }
+      else if (!opts.fixed_size)
+      {
+        document.body.onresize = function(e) {
+          g.web._canvas.width = g.web._canvas.clientWidth;
+          g.web._canvas.height = g.web._canvas.clientHeight;
+          gl.viewport(0, 0, g.web._canvas.clientWidth, g.web._canvas.clientHeight);
+        };
+      }
+
+      g.web._canvas.requestPointerLock = g.web._canvas.requestPointerLock ||
+                         g.web._canvas.mozRequestPointerLock ||
+                         function(){};
+
+      document.exitPointerLock = document.exitPointerLock ||
+                     document.mozExitPointerLock ||
+                     function(){};
+
+      g.web._canvas.requestPointerLock();
+
+      return this;
+    },
+
+    draw: function(f) { g.web._draw = f; return this; }
+
+  };
+
+</script>
 <script type="text/javascript">
 const SRC_SPRITE_VS = `
 attribute vec3 a_position;
@@ -171,7 +3065,7 @@ varying lowp vec2 v_tex_coord;
 void main (void)
 {
   gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
-  v_tex_coord = a_tex_coord;
+  v_tex_coord = vec2(1.0) - a_tex_coord;
 }
 `;
 
@@ -188,205 +3082,291 @@ void main (void)
     gl_FragColor = texture2D(u_sprite_sheet, v_tex_coord * size + origin);
 }
 `;
-const AG_SPRITE={ "frames": {
-   "ag 0.aseprite": {
+const WIN_SPRITE={ "frames": {
+   "win (back) 0.aseprite": {
     "frame": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 666
+    "duration": 50
    },
-   "ag 1.aseprite": {
+   "win (back) 1.aseprite": {
     "frame": { "x": 64, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 666
+    "duration": 50
    },
-   "ag 2.aseprite": {
+   "win (back) 2.aseprite": {
     "frame": { "x": 128, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 666
+    "duration": 50
    },
-   "ag 3.aseprite": {
+   "win (back) 3.aseprite": {
     "frame": { "x": 192, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 4.aseprite": {
+   "win (back) 4.aseprite": {
     "frame": { "x": 256, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 5.aseprite": {
+   "win (back) 5.aseprite": {
     "frame": { "x": 320, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 6.aseprite": {
+   "win (back) 6.aseprite": {
     "frame": { "x": 384, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 7.aseprite": {
+   "win (back) 7.aseprite": {
     "frame": { "x": 448, "y": 0, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 8.aseprite": {
-    "frame": { "x": 512, "y": 0, "w": 64, "h": 64 },
+   "win (body) 0.aseprite": {
+    "frame": { "x": 0, "y": 64, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 9.aseprite": {
-    "frame": { "x": 576, "y": 0, "w": 64, "h": 64 },
+   "win (body) 1.aseprite": {
+    "frame": { "x": 64, "y": 64, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 10.aseprite": {
-    "frame": { "x": 640, "y": 0, "w": 64, "h": 64 },
+   "win (body) 2.aseprite": {
+    "frame": { "x": 128, "y": 64, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 11.aseprite": {
-    "frame": { "x": 704, "y": 0, "w": 64, "h": 64 },
+   "win (body) 3.aseprite": {
+    "frame": { "x": 192, "y": 64, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
    },
-   "ag 12.aseprite": {
-    "frame": { "x": 768, "y": 0, "w": 64, "h": 64 },
+   "win (body) 4.aseprite": {
+    "frame": { "x": 256, "y": 64, "w": 64, "h": 64 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
     "sourceSize": { "w": 64, "h": 64 },
-    "duration": 100
+    "duration": 50
+   },
+   "win (body) 5.aseprite": {
+    "frame": { "x": 320, "y": 64, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (body) 6.aseprite": {
+    "frame": { "x": 384, "y": 64, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (body) 7.aseprite": {
+    "frame": { "x": 448, "y": 64, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 0.aseprite": {
+    "frame": { "x": 0, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 1.aseprite": {
+    "frame": { "x": 64, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 2.aseprite": {
+    "frame": { "x": 128, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 3.aseprite": {
+    "frame": { "x": 192, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 4.aseprite": {
+    "frame": { "x": 256, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 5.aseprite": {
+    "frame": { "x": 320, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 6.aseprite": {
+    "frame": { "x": 384, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (front) 7.aseprite": {
+    "frame": { "x": 448, "y": 128, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 0.aseprite": {
+    "frame": { "x": 0, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 1.aseprite": {
+    "frame": { "x": 64, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 2.aseprite": {
+    "frame": { "x": 128, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 3.aseprite": {
+    "frame": { "x": 192, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 4.aseprite": {
+    "frame": { "x": 256, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 5.aseprite": {
+    "frame": { "x": 320, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 6.aseprite": {
+    "frame": { "x": 384, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
+   },
+   "win (head) 7.aseprite": {
+    "frame": { "x": 448, "y": 192, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 50
    }
  },
  "meta": {
   "app": "http://www.aseprite.org/",
-  "version": "1.2.16.3",
-  "image": "ag.png",
+  "version": "1.2.25",
   "format": "RGBA8888",
-  "size": { "w": 832, "h": 64 },
+  "size": { "w": 512, "h": 256 },
   "scale": "1",
   "frameTags": [
-   { "name": "snooze", "from": 0, "to": 2, "direction": "pingpong" },
-   { "name": "Soar", "from": 3, "to": 10, "direction": "forward" },
-   { "name": "sit", "from": 11, "to": 11, "direction": "forward" },
-   { "name": "Jump", "from": 12, "to": 12, "direction": "forward" }
+   { "name": "wag", "from": 0, "to": 6, "direction": "forward" },
+   { "name": "hop", "from": 7, "to": 7, "direction": "forward" }
+  ],
+  "layers": [
+   { "name": "back", "opacity": 255, "blendMode": "normal" },
+   { "name": "body", "opacity": 255, "blendMode": "normal" },
+   { "name": "front", "opacity": 255, "blendMode": "normal" },
+   { "name": "head", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
   ]
  }
-};
-const BEDDY_SPRITE = { "frames": {
-   "beddy 0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   },
-   "beddy 1.aseprite": {
-    "frame": { "x": 128, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   },
-   "beddy 2.aseprite": {
-    "frame": { "x": 256, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   },
-   "beddy 3.aseprite": {
-    "frame": { "x": 384, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   },
-   "beddy 4.aseprite": {
-    "frame": { "x": 512, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   },
-   "beddy 5.aseprite": {
-    "frame": { "x": 640, "y": 0, "w": 128, "h": 64 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 64 },
-    "sourceSize": { "w": 128, "h": 64 },
-    "duration": 100
-   }
- },
- "meta": {
-  "app": "http://www.aseprite.org/",
-  "version": "1.2.16.3",
-  "image": "beddy.png",
-  "format": "RGBA8888",
-  "size": { "w": 768, "h": 64 },
-  "scale": "1",
-  "frameTags": [
-   { "name": "snooze", "from": 0, "to": 0, "direction": "forward" },
-   { "name": "kick", "from": 1, "to": 5, "direction": "forward" }
-  ]
- }
-};
-</script>
-<img
-id="ag"
-style="display: none;"
-src="data:image/png;base64,
-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
-"
-texture-params="pixelated.clamped"
-/>
+}
 
+</script>
+<img id="cone" style="display:none;" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAgCAYAAAAbifjMAAAAAXNSR0IArs4c6QAAAOZJREFUSIntlb0NwjAQhZ9RNoiUAqVBYhRPmjk8QjYIEg2iQMoMpoCDy/3YpqFAvMZR7O/l7p2lAN9QXlP29sInYOijOu8atMAAsGuBT+erW6VpwIESbBos85SPh72CvSA3Bss8bQ6REa2WidmCZeKpmoGUrMKtoBYeSc3Wy0GBz3vRWXCtb66Xgfwyl9VOXlMOfQydcd6FrcqKY6zBgAiRt1HLgULcGOQENwdlEKGnAACXWx0eh/ezMuCbTZXIFy1tUPmAMQXapFbkymHTgDQOD4ivllwDCXvh/itwfiyluyDH+AO6A5wTfQcstWWdAAAAAElFTkSuQmCC">
 <img
-id="beddy"
+id="win"
 style="display: none;"
-src="data:image/png;base64,
-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
+src=" data:image/png;base64,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
 "
 texture-params="pixelated.clamped"
 />
